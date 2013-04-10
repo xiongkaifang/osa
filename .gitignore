@@ -1,0 +1,16 @@
+tags
+cscope.out
+cscope.files
+.svn
+.metadata
+gsv_arm/.metadata
+*/.svn
+*/package
+compiler.opt
+linker.cmd
+*~
+*.o
+test/*.so
+.*
+!.gitignore
+!.gitkeep
