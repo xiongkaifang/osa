@@ -375,10 +375,15 @@ status_t threadpool_delete(threadpool_t *thdp)
 
     if (hdl == NULL) {
         DBG(DBG_ERROR, "threadpool_delete: Invalid arguments.\n");
-        return ;
+        return OSA_EARGS;
     }
 
     status = __threadpool_exit(hdl);
+
+    /*
+     *  Free the threadpool object.
+     */
+    OSA_memFree(sizeof(*hdl), (void *)hdl);
 
     (*thdp) = (threadpool_t)NULL;
 
