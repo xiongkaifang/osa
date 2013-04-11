@@ -265,7 +265,7 @@ static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg)
         /*
          *   Do the task.
          */
-        fprintf(stderr, "task_do_process: TASK[0x%x]: %s is running...\n", tsk_hdl, tsk_hdl->m_name);
+        fprintf(stderr, "task_do_process: TASK[0x%x]: %s is running...\n", tsk, tsk_hdl->m_name);
 
         sleep(4);
 

@@ -357,7 +357,7 @@ status_t task_daemon_start(task_mgr_handle hdl)
     /*
      *  Broadcast INIT cmd.
      */
-    sleep(1);
+    //sleep(1);
     fprintf(stderr, "task_daemon_start: Broadcast INIT cmd.\n");
     status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
@@ -374,6 +374,10 @@ status_t task_daemon_start(task_mgr_handle hdl)
         retval = msg_get_status(msg);
 
         //msg_set_flags(msg, 0);
+
+        if (!OSA_ISERROR(retval)) {
+            DBG(DBG_INFO, "task_daemon_start: TASK[0x%x] initialized successfully!\n", msg->u.m_tsk_msg.m_frm);
+        }
 
         status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
 
@@ -499,9 +503,13 @@ status_t task_daemon_stop(task_mgr_handle hdl)
         retval = msg_get_status(msg);
 
         //msg_set_flags(msg, 0);
+        if (!OSA_ISERROR(retval)) {
+            DBG(DBG_INFO, "task_daemon_stop: TASK[0x%x] de-initialized successfully!\n", msg->u.m_tsk_msg.m_frm);
+        } else {
+            DBG(DBG_INFO, "task_daemon_stop: TASK[0x%x] de-initialized error!\n", msg->u.m_tsk_msg.m_frm);
+        }
 
         status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
-
     }
 
     return status;
