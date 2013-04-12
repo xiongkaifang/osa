@@ -564,6 +564,11 @@ status_t task_ack_free_msg(task_t tsk, msg_t *msg)
         status |= task_send_msg(msg->u.m_tsk_msg.m_to,
                     msg->u.m_tsk_msg.m_frm, msg, MSG_TYPE_ACK);
     } else {
+
+        if (msg_get_flags(msg) & MSG_FLAGS_FREE_PRM) {
+            OSA_memFree(msg_get_payload_size(msg), msg_get_payload_ptr(msg));
+        }
+
         status |= mailbox_free_msg(msg_get_msg_size(msg), msg);
     }
 

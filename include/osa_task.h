@@ -157,12 +157,9 @@ status_t task_create(const char *name, TASK_MAIN main,
 					 unsigned int init_state, void *userdata,
 					 task_t *tsk);
 
-#if 0
-status_t task_get_mailbox(task_t tsk, mailbox_t *mbx);
-status_t task_set_mailbox(task_t tsk, mailbox_t mbx);
-#endif
-
 status_t task_send_msg(task_t to, task_t frm, msg_t *msg, msg_type_t msgt);
+status_t task_recv_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
+
 //status_t task_broadcast(task_t to_lists[], task_t frm, msg_t *msg);
 status_t task_broadcast(task_t tolists[], task_t frm,
         unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
@@ -172,11 +169,12 @@ status_t task_synchronize(void *ud, task_t tsk, TASK_SYNC_FXN fxn, unsigned int 
 status_t task_alloc_msg(unsigned short size, msg_t **msg);
 status_t task_free_msg(unsigned short size, msg_t *msg);
 
-status_t task_recv_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
 status_t task_wait_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
 status_t task_check_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
 status_t task_wait_cmd(task_t tsk, msg_t **msg, unsigned short cmd);
 status_t task_flush(task_t tsk);
+
+status_t task_ack_free_msg(task_t tsk, msg_t *msg);
 
 status_t task_get_msg_count(task_t tsk, unsigned int *cnt, msg_type_t msgt);
 

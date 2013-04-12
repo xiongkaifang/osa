@@ -51,9 +51,9 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define OSA_memAlloc(size, ptr) (mem_alloc(size, NULL, ptr))
+#define OSA_memAlloc(size, ptr) (mem_alloc((size), NULL, ((void **)(ptr))))
 
-#define OSA_memFree(size, ptr)  (mem_free(size, NULL, ptr))
+#define OSA_memFree(size, ptr)  (mem_free((size), NULL, ((void *)(ptr))))
 
 #ifdef  TRUE
 #undef  TRUE
