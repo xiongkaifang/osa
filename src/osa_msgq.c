@@ -523,7 +523,6 @@ status_t msgq_mgr_unregister(const char *name, msgq_t msgq)
 
     mutex_lock(&hdl->m_mutex);
     
-    fprintf(stderr, "msgq_mgr_unregister: name: %s\n", name);
     if (hdl->m_msgq_used > 0) {
 
         status = msgq_mgr_internal_find(hdl, name, &msgq_node);
