@@ -590,7 +590,7 @@ static status_t mailbox_deinit(mailbox_handle hdl)
 
     for (i = 0; i < OSA_ARRAYSIZE(hdl->m_msgqs); i++) {
 
-        status = msgq_mgr_register(hdl->m_names[i], hdl->m_msgqs, NULL);
+        status = msgq_mgr_unregister(hdl->m_names[i], hdl->m_msgqs[i]);
     }
 
     return status;
