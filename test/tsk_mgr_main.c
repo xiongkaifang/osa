@@ -33,6 +33,9 @@
 #include "tsk_mgr_main.h"
 #include "tsk_drv_test1.h"
 #include "tsk_drv_test2.h"
+#include "tsk_drv_test3.h"
+#include "tsk_drv_test4.h"
+#include "tsk_drv_test5.h"
 #include "debug.h"
 
 #if defined(__cplusplus)
@@ -232,14 +235,14 @@ status_t system_init(task_mgr_handle hdl)
      *  Initialize mailbox system.
      */
     fprintf(stderr, "system_init: Initiailze mailbox system.\n");
-    hdl->m_params.m_mbx_sys_prm.m_mbx_cnt = 5;
+    hdl->m_params.m_mbx_sys_prm.m_mbx_cnt = 10;
     status |= mailbox_system_init(&hdl->m_params.m_mbx_sys_prm);
 
     /*
      *  Initialize tasklist.
      */
     fprintf(stderr, "system_init: Initiailze task lists.\n");
-    hdl->m_params.m_tsklist_prm.m_tsk_cnt = 5;
+    hdl->m_params.m_tsklist_prm.m_tsk_cnt = 10;
     status |= tasklist_init(&hdl->m_params.m_tsklist_prm);
 
     OSA_assert(OSA_SOK == status);
@@ -254,26 +257,25 @@ status_t system_deinit(task_mgr_handle hdl)
     /*
      *  Finialize tasklist.
      */
-    fprintf(stderr, "system_deinit: De-initialize task lists\n");
     status |= tasklist_deinit();
+    fprintf(stderr, "system_deinit: De-initialize task lists.\n");
 
     /*
      *  Finalize mailbox system.
      */
-    
-    fprintf(stderr, "system_deinit: De-initialize mailbox system\n");
     status |= mailbox_system_deinit();
+    fprintf(stderr, "system_deinit: De-initialize mailbox system.\n");
 
     /*
      *  Finalize msgq manager.
      */
-    fprintf(stderr, "system_deinit: De-initialize msgq manager\n");
     status |= msgq_mgr_deinit();
+    fprintf(stderr, "system_deinit: De-initialize msgq manager.\n");
 
     /*
      *  Finalize debug module.
      */
-    fprintf(stderr, "system_deinit: De-initialize debug module\n");
+    fprintf(stderr, "system_deinit: De-initialize debug module.\n");
     debugger_destroy();
 
     OSA_assert(OSA_SOK == status);
@@ -313,13 +315,22 @@ status_t task_daemon_init(task_mgr_handle hdl)
     status |= mutex_create(&hdl->m_mutex);
 
     hdl->m_tsk_cnt = TASK_MGR_TSK_MAX;
-    hdl->m_cur_cnt = 2;
+    hdl->m_cur_cnt = 5;
     
     hdl->m_tsklists[TASK_MGR_TSK1].m_tsk_obj = &glb_tsk_obj1;
     hdl->m_tsklists[TASK_MGR_TSK1].m_tsk     = TASK_INVALID_TSK;
 
     hdl->m_tsklists[TASK_MGR_TSK2].m_tsk_obj = &glb_tsk_obj2;
     hdl->m_tsklists[TASK_MGR_TSK2].m_tsk     = TASK_INVALID_TSK;
+
+    hdl->m_tsklists[TASK_MGR_TSK3].m_tsk_obj = &glb_tsk_obj3;
+    hdl->m_tsklists[TASK_MGR_TSK3].m_tsk     = TASK_INVALID_TSK;
+
+    hdl->m_tsklists[TASK_MGR_TSK4].m_tsk_obj = &glb_tsk_obj4;
+    hdl->m_tsklists[TASK_MGR_TSK4].m_tsk     = TASK_INVALID_TSK;
+
+    hdl->m_tsklists[TASK_MGR_TSK5].m_tsk_obj = &glb_tsk_obj5;
+    hdl->m_tsklists[TASK_MGR_TSK5].m_tsk     = TASK_INVALID_TSK;
 
     status = task_daemon_task_create(hdl);
 
@@ -347,7 +358,7 @@ status_t task_daemon_start(task_mgr_handle hdl)
      *  Broadcast INIT cmd.
      */
     sleep(1);
-    fprintf(stderr, "task_daemon_start: Send INIT cmd.\n");
+    fprintf(stderr, "task_daemon_start: Broadcast INIT cmd.\n");
     status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
     /*
@@ -377,13 +388,14 @@ status_t task_daemon_start(task_mgr_handle hdl)
 
     if (!init_succeeded) {
 
-        DBG(DBG_ERROR, "task_daemon_start: Not all task initiailzed successfully, shut down system...\n");
+        DBG(DBG_ERROR, "task_daemon_start: Not all task initialized successfully, shut down system...\n");
         status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
         /*
          *  Wait for ack.
          */
         for (i = 0; i < hdl->m_cur_cnt; i++) {
+
             status |= task_recv_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_ACK);
 
             /*
@@ -420,7 +432,7 @@ status_t task_daemon_run(task_mgr_handle hdl)
     /*
      *  Broadcast PROCESS cmd.
      */
-    fprintf(stderr, "task_daemon_run: Send PROC cmd\n");
+    fprintf(stderr, "task_daemon_run: Broadcast PROC cmd\n");
     status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_PROC, NULL, 0, 0);
 
     OSA_assert(OSA_SOK == status);
@@ -433,6 +445,8 @@ status_t task_daemon_run(task_mgr_handle hdl)
         sleep(1);
 
         DBG(DBG_INFO, "task_daemon_run: task daemon system is running...\n");
+
+        //tsk_mgr_daemon_print_menu(hdl);
 
         status = task_check_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_CMD);
 
@@ -472,7 +486,7 @@ status_t task_daemon_stop(task_mgr_handle hdl)
     /*
      *  Broadcast EXIT cmd.
      */
-    fprintf(stderr, "task_daemon_stop: Send EXIT cmd\n");
+    fprintf(stderr, "task_daemon_stop: Broadcast EXIT cmd\n");
     status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
     for (i = 0; i < hdl->m_cur_cnt; i++) {

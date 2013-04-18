@@ -2,9 +2,9 @@
  *
  *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co.,, Ltd.
  *
- *  @File name:	tsk_drv_test2.c
+ *  @File name:	tsk_drv_test3.c
  *
- *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-10
+ *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-08
  *
  *  @Description:   The description of this file.
  *	
@@ -19,7 +19,7 @@
  *  @History:	     //	历史修改记录
  *
  *	<author>	    <time>	     <version>	    <desc>
- *  xiong-kaifang   2013-04-10     v1.0	        write this module.
+ *  xiong-kaifang   2013-04-04     v1.0	        write this module.
  *
  *
  *  ============================================================================
@@ -29,7 +29,7 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
-#include "tsk_drv_test2.h"
+#include "tsk_drv_test3.h"
 #include "debug.h"
 
 #if defined(__cplusplus)
@@ -61,27 +61,27 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __task_driver_test2_object_t
+struct __task_driver_test3_object_t
 {
     const char   * m_name;
 };
 
-typedef struct __task_driver_test2_object_t task_driver_test2_object_t;
+typedef struct __task_driver_test3_object_t task_driver_test3_object_t;
 
 /*
  *  --------------------- Global variable definition ---------------------------
  */
-static task_driver_test2_object_t glb_tsk_drv_test2 = {
-    .m_name       = "TSK_TEST_OBJECT2"
+static task_driver_test3_object_t glb_tsk_drv_test3 = {
+    .m_name       = "TSK_TEST_OBJECT3"
 };
 
-task_common_object_t glb_tsk_obj2 = {
-    .m_name       = "TSK_TEST_OBJECT2",
-    .m_main       = tsk_drv_test2_main,
+task_common_object_t glb_tsk_obj3 = {
+    .m_name       = "TSK_TEST_OBJECT3",
+    .m_main       = tsk_drv_test3_main,
     .m_pri        = 0,
     .m_stack_size = 0,
     .m_init_state = 0,
-    .m_userdata   = &glb_tsk_drv_test2
+    .m_userdata   = &glb_tsk_drv_test3
 };
 
 /** ----------------------------------------------------------------------------
@@ -165,7 +165,7 @@ static status_t task_external_main(void *ud, task_t tsk, msg_t **msg);
  *
  *  ============================================================================
  */
-status_t tsk_drv_test2_main(void *ud, task_t tsk, msg_t **msg)
+status_t tsk_drv_test3_main(void *ud, task_t tsk, msg_t **msg)
 {
     return task_external_main(ud, tsk, msg);
 }
@@ -185,9 +185,9 @@ status_t tsk_drv_test2_main(void *ud, task_t tsk, msg_t **msg)
 static status_t task_do_initialize(HANDLE hdl, task_t tsk, msg_t *msg)
 {
     status_t status = OSA_SOK;
-    task_driver_test2_object_t * tsk_hdl = NULL;
+    task_driver_test3_object_t * tsk_hdl = NULL;
 
-    tsk_hdl = (task_driver_test2_object_t *)hdl;
+    tsk_hdl = (task_driver_test3_object_t *)hdl;
 
     DBG(DBG_INFO, "task_do_initialize: %s do initialized.\n", tsk_hdl->m_name);
 
@@ -197,9 +197,9 @@ static status_t task_do_initialize(HANDLE hdl, task_t tsk, msg_t *msg)
 static status_t task_do_exit(HANDLE hdl, task_t tsk, msg_t *msg)
 {
     status_t status = OSA_SOK;
-    task_driver_test2_object_t * tsk_hdl = NULL;
+    task_driver_test3_object_t * tsk_hdl = NULL;
 
-    tsk_hdl = (task_driver_test2_object_t *)hdl;
+    tsk_hdl = (task_driver_test3_object_t *)hdl;
 
     DBG(DBG_INFO, "task_do_deinitialize: %s do deinitialized.\n", tsk_hdl->m_name);
 
@@ -209,9 +209,9 @@ static status_t task_do_exit(HANDLE hdl, task_t tsk, msg_t *msg)
 static status_t task_do_synchronize(void *ud, task_t tsk, msg_t *msg)
 {
     status_t status = OSA_SOK;
-    task_driver_test2_object_t * tsk_hdl = NULL;
+    task_driver_test3_object_t * tsk_hdl = NULL;
 
-    tsk_hdl = (task_driver_test2_object_t *)ud;
+    tsk_hdl = (task_driver_test3_object_t *)ud;
 
     DBG(DBG_INFO, "task_do_synchronize: %s do synchronized.\n", tsk_hdl->m_name);
 
@@ -243,9 +243,9 @@ static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg)
     unsigned int msg_cnt = 0;
     task_state_t tsk_state = TASK_STATE_PROC;
 
-    task_driver_test2_object_t * tsk_hdl = NULL;
+    task_driver_test3_object_t * tsk_hdl = NULL;
 
-    tsk_hdl = (task_driver_test2_object_t *)hdl;
+    tsk_hdl = (task_driver_test3_object_t *)hdl;
 
     OSA_assert((void *)tsk_hdl != NULL);
 
@@ -267,7 +267,7 @@ static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg)
          */
         fprintf(stderr, "task_do_process: TASK[0x%x]: %s is running...\n", tsk_hdl, tsk_hdl->m_name);
 
-        sleep(2);
+        sleep(3);
 
         status |= task_synchronize((void *)hdl, tsk, task_do_synchronize, msg_cnt);
     }
