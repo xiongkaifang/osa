@@ -340,6 +340,30 @@ status_t mailbox_wait_cmd(mailbox_t mbx, msg_t **msg, unsigned short cmd)
 	return status;
 }
 
+status_t mailbox_wait_ack(mailbox_t mbx, msg_t **msg, unsigned int id)
+{
+    status_t status = OSA_EFAIL;
+    mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
+
+    OSA_assert(mbx_hdl != NULL && msg != NULL);
+
+    do {
+        status = msgq_recv(mbx_hdl->m_msgqs[MAILBOX_MSGQ_ACK],
+                msg, OSA_TIMEOUT_FOREVER);
+        OSA_assert(OSA_SOK == status);
+
+        if (msg_get_msg_id(*msg) == id) {
+            status = OSA_SOK;
+            break;
+        }
+
+        status |= msgq_send(mbx_hdl->m_msgqs[MAILBOX_MSGQ_ACK], *msg, OSA_TIMEOUT_NONE);
+
+    } while (1);
+
+    return status;
+}
+
 #if 0
 status_t mailbox_ack_msg(mailbox_t to, mailbox_t frm, mailbox_msg_t *msg)
 {

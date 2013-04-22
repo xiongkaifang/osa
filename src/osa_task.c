@@ -522,6 +522,16 @@ status_t task_wait_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
 	return status;
 }
 
+status_t task_wait_ack(task_t tsk, msg_t **msg, unsigned int id)
+{
+    status_t status = OSA_SOK;
+    task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
+
+    status = mailbox_wait_ack(tsk_hdl->m_tsk_mbx, msg, id);
+
+    return status;
+}
+
 status_t task_check_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
 {
 	status_t status = OSA_SOK;

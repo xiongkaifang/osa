@@ -143,6 +143,7 @@ status_t mailbox_wait_msg(mailbox_t mbx, msg_t **msg, msg_type_t msgt);
 status_t mailbox_check_msg(mailbox_t mbx, msg_t **msg, msg_type_t msgt);
 status_t mailbox_get_msg_count(mailbox_t mbx, unsigned int *cnt, msg_type_t msgt);
 status_t mailbox_wait_cmd(mailbox_t mbx, msg_t **msg, unsigned short cmd);
+status_t mailbox_wait_ack(mailbox_t mbx, msg_t **msg, unsigned int id);
 status_t mailbox_flush(mailbox_t mbx);
 status_t mailbox_close(mailbox_t mbx, mailbox_params_t *prm);
 

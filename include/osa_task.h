@@ -172,6 +172,7 @@ status_t task_free_msg(unsigned short size, msg_t *msg);
 status_t task_wait_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
 status_t task_check_msg(task_t tsk, msg_t **msg, msg_type_t msgt);
 status_t task_wait_cmd(task_t tsk, msg_t **msg, unsigned short cmd);
+status_t task_wait_ack(task_t tsk, msg_t **msg, unsigned int id);
 status_t task_flush(task_t tsk);
 
 status_t task_ack_free_msg(task_t tsk, msg_t *msg);
