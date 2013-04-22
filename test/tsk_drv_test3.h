@@ -99,7 +99,7 @@ extern "C" {
  *
  *  ============================================================================
  */
-extern task_common_object_t glb_tsk_obj3;
+extern task_object_t glb_tsk_obj3;
 
 extern status_t tsk_drv_test3_main(void *ud, task_t tsk, msg_t **msg);
 

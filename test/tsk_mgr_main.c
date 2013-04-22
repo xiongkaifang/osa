@@ -82,6 +82,27 @@ task_mgr_object_t   glb_tsk_mgr_obj;
 
 static unsigned int glb_tsk_mgr_exit = 0;
 
+task_object_t glb_tsk_mgr = {
+    .m_name       = "TSK_MGR_DAEMON",
+    .m_main       = NULL,
+    .m_pri        = 0,
+    .m_stack_size = 0,
+    .m_init_state = 0,
+    .m_userdata   = NULL,
+    .m_task       = TASK_INVALID_TSK
+};
+
+static const char * menu[] = {
+    "\nChoice | Description\n",
+    "---------------------------------\n",
+    "   1     Print Task Manamger instruments.\n",
+    "   2     Not used\n",
+    "   3     Not used\n",
+    "   4     Not used\n",
+    "   5     Not used\n",
+    "   q     Quit from this task daemon.\n"
+};
+
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -128,26 +149,17 @@ status_t task_daemon_task_delete(task_mgr_handle hdl);
 static status_t
 tsk_mgr_daemon_process_msg(task_mgr_handle hdk, task_t tsk, msg_t *msg);
 
+static int
+task_mgr_daemon_print_menu(task_mgr_handle hdl);
+
 status_t tsk_mgr_daemon(task_mgr_handle hdl);
 
 static void tsk_mgr_daemon_signal_handler(int sig)
 {
     if (sig == SIGINT) {
         fprintf(stderr, "SIGINT signal caught, system shutdown now...\n");
-        //glb_tsk_mgr_exit = 1; 
 
-        int i;
-        int retval = 0;
-        status_t status = OSA_SOK;
-        task_t tsklists[TASKLIST_TSK_MAX];
-
-        for (i = 0; i < OSA_ARRAYSIZE(tsklists); i++) {
-            tsklists[i] = TASK_INVALID_TSK;
-        }
-
-        tsklists[0] = glb_tsk_mgr_obj.m_cur_tsk;
-
-        task_broadcast(tsklists, (task_t)NULL, TASK_CMD_EXIT, NULL, 0, 0);
+        task_mgr_synchronize(glb_tsk_mgr_obj.m_tsklists[TASK_MGR_TSK0], TASK_CMD_EXIT, NULL, 0, 0);
 
     } else {
         fprintf(stderr, "Invalid signal caught\n");
@@ -241,9 +253,10 @@ status_t system_init(task_mgr_handle hdl)
     /*
      *  Initialize tasklist.
      */
-    fprintf(stderr, "system_init: Initiailze task lists.\n");
-    hdl->m_params.m_tsklist_prm.m_tsk_cnt = 10;
-    status |= tasklist_init(&hdl->m_params.m_tsklist_prm);
+    fprintf(stderr, "system_init: Initiailze task manager.\n");
+    hdl->m_params.m_tsk_mgr_prm.m_msg_cnt = 10;
+    hdl->m_params.m_tsk_mgr_prm.m_tsk_cnt = 10;
+    status |= task_mgr_init(&hdl->m_params.m_tsk_mgr_prm);
 
     OSA_assert(OSA_SOK == status);
 
@@ -257,8 +270,8 @@ status_t system_deinit(task_mgr_handle hdl)
     /*
      *  Finialize tasklist.
      */
-    status |= tasklist_deinit();
-    fprintf(stderr, "system_deinit: De-initialize task lists.\n");
+    status |= task_mgr_deinit();
+    fprintf(stderr, "system_deinit: De-initialize task manager.\n");
 
     /*
      *  Finalize mailbox system.
@@ -315,22 +328,14 @@ status_t task_daemon_init(task_mgr_handle hdl)
     status |= mutex_create(&hdl->m_mutex);
 
     hdl->m_tsk_cnt = TASK_MGR_TSK_MAX;
-    hdl->m_cur_cnt = 5;
+    hdl->m_cur_cnt = 6;
     
-    hdl->m_tsklists[TASK_MGR_TSK1].m_tsk_obj = &glb_tsk_obj1;
-    hdl->m_tsklists[TASK_MGR_TSK1].m_tsk     = TASK_INVALID_TSK;
-
-    hdl->m_tsklists[TASK_MGR_TSK2].m_tsk_obj = &glb_tsk_obj2;
-    hdl->m_tsklists[TASK_MGR_TSK2].m_tsk     = TASK_INVALID_TSK;
-
-    hdl->m_tsklists[TASK_MGR_TSK3].m_tsk_obj = &glb_tsk_obj3;
-    hdl->m_tsklists[TASK_MGR_TSK3].m_tsk     = TASK_INVALID_TSK;
-
-    hdl->m_tsklists[TASK_MGR_TSK4].m_tsk_obj = &glb_tsk_obj4;
-    hdl->m_tsklists[TASK_MGR_TSK4].m_tsk     = TASK_INVALID_TSK;
-
-    hdl->m_tsklists[TASK_MGR_TSK5].m_tsk_obj = &glb_tsk_obj5;
-    hdl->m_tsklists[TASK_MGR_TSK5].m_tsk     = TASK_INVALID_TSK;
+    hdl->m_tsklists[TASK_MGR_TSK0] = &glb_tsk_mgr;
+    hdl->m_tsklists[TASK_MGR_TSK1] = &glb_tsk_obj1;
+    hdl->m_tsklists[TASK_MGR_TSK2] = &glb_tsk_obj2;
+    hdl->m_tsklists[TASK_MGR_TSK3] = &glb_tsk_obj3;
+    hdl->m_tsklists[TASK_MGR_TSK4] = &glb_tsk_obj4;
+    hdl->m_tsklists[TASK_MGR_TSK5] = &glb_tsk_obj5;
 
     status = task_daemon_task_create(hdl);
 
@@ -339,133 +344,90 @@ status_t task_daemon_init(task_mgr_handle hdl)
 
 status_t task_daemon_start(task_mgr_handle hdl)
 {
-    int i, j;
-    int retval = 0;
     Bool init_succeeded = TRUE;
-    msg_t *msg = NULL;
     status_t status = OSA_SOK;
-    task_t tsklists[TASKLIST_TSK_MAX];
 
-    for (i = 0; i < OSA_ARRAYSIZE(tsklists); i++) {
-        tsklists[i] = TASK_INVALID_TSK;
+    status = task_mgr_broadcast(TASK_CMD_INIT, NULL, 0, 0);
+    if (OSA_ISERROR(status)) {
+        status |= task_mgr_broadcast(TASK_CMD_EXIT, NULL, 0, 0);
     }
 
-    for (i = 0; i < hdl->m_cur_cnt; i++) {
-        tsklists[i] = hdl->m_tsklists[i].m_tsk;
-    }
-
-    /*
-     *  Broadcast INIT cmd.
-     */
-    //sleep(1);
-    fprintf(stderr, "task_daemon_start: Broadcast INIT cmd.\n");
-    status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
-
-    /*
-     *  Wait for ack.
-     */
-    fprintf(stderr, "task_daemon_start: Wait INIT ack.\n");
-    for (i = 0; i < hdl->m_cur_cnt; i++) {
-        status |= task_recv_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_ACK);
-
-        /*
-         *  Checkout the status.
-         */
-        retval = msg_get_status(msg);
-
-        //msg_set_flags(msg, 0);
-
-        if (!OSA_ISERROR(retval)) {
-            DBG(DBG_INFO, "task_daemon_start: TASK[0x%x] initialized successfully!\n", msg->u.m_tsk_msg.m_frm);
-        }
-
-        status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
-
-        if (OSA_ISERROR(retval)) {
-            /*
-             *  Error.
-             */
-            //break;
-            init_succeeded = FALSE;
-        }
-    }
-
-    if (!init_succeeded) {
-
-        DBG(DBG_ERROR, "task_daemon_start: Not all task initialized successfully, shut down system...\n");
-        status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
-
-        /*
-         *  Wait for ack.
-         */
-        for (i = 0; i < hdl->m_cur_cnt; i++) {
-
-            status |= task_recv_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_ACK);
-
-            /*
-             *  Checkout the status.
-             */
-            retval = msg_get_status(msg);
-
-            //msg_set_flags(msg, 0);
-
-            status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
-        }
-    }
-
-    return (init_succeeded ? OSA_SOK : OSA_EFAIL);
+    return status;
 }
 
 status_t task_daemon_run(task_mgr_handle hdl)
 {
-    int i;
-    int retval = 0;
+    int ch;
     msg_t *msg = NULL;
     status_t status = OSA_SOK;
     task_state_t state = TASK_STATE_PROC;
-    task_t tsklists[TASKLIST_TSK_MAX];
 
-    for (i = 0; i < OSA_ARRAYSIZE(tsklists); i++) {
-        tsklists[i] = TASK_INVALID_TSK;
-    }
-
-    for (i = 0; i < hdl->m_cur_cnt; i++) {
-        tsklists[i] = hdl->m_tsklists[i].m_tsk;
-    }
-
-    /*
-     *  Broadcast PROCESS cmd.
-     */
-    fprintf(stderr, "task_daemon_run: Broadcast PROC cmd\n");
-    status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_PROC, NULL, 0, 0);
-
-    OSA_assert(OSA_SOK == status);
+    status = task_mgr_broadcast(TASK_CMD_PROC, NULL, 0, 0);
 
     glb_tsk_mgr_exit = 0;
     signal(SIGINT, tsk_mgr_daemon_signal_handler);
 
     while (!glb_tsk_mgr_exit) {
 
+#if defined(TASM_MGR_DEBUG)
         sleep(1);
 
-        DBG(DBG_INFO, "task_daemon_run: task daemon system is running...\n");
+        DBG(DBG_INFO, "task_daemon_run: task daemon system is running ...\n");
+#endif  // if defined TASK_MGR_DEBUG
 
-        //tsk_mgr_daemon_print_menu(hdl);
+        ch = task_mgr_daemon_print_menu(hdl);
 
-        status = task_check_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_CMD);
+        if (ch == '\n') {
+            continue;
+        }
+
+        switch(ch)
+        {
+            case '1':
+                status = task_mgr_instruments();
+                break;
+
+            case '2':
+                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                break;
+
+            case '3':
+                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                break;
+
+            case '4':
+                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                break;
+
+            case '5':
+                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                break;
+
+            case 'q':
+                DBG(DBG_WARNING, "task_daemon_run: Quit from this task daemon.\n");
+                glb_tsk_mgr_exit = 1;
+                break;
+
+            default:
+                DBG(DBG_WARNING, "task_daemon_run: Invalid choice.\n");
+                break;
+        }
+#if 0
+        status = task_check_msg(hdl->m_tsklists[TASK_MGR_TSK0]->m_task, &msg, MSG_TYPE_CMD);
 
         if (OSA_ISERROR(status)) {
             continue;
         }
 
-        status |= tsk_mgr_daemon_process_msg(hdl, hdl->m_cur_tsk, msg);
+        status |= tsk_mgr_daemon_process_msg(hdl, hdl->m_tsklists[TASK_MGR_TSK0]->m_task, msg);
 
-        status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
+        status |= task_ack_free_msg(hdl->m_tsklists[TASK_MGR_TSK0]->m_task, msg);
 
-        if (!OSA_ISERROR(task_get_state(hdl->m_cur_tsk, &state))
+        if (!OSA_ISERROR(task_get_state(hdl->m_tsklists[TASK_MGR_TSK0]->m_task, &state))
                 && state == TASK_STATE_EXIT) {
             break;
         }
+#endif
     }
 
     return OSA_SOK;
@@ -473,44 +435,9 @@ status_t task_daemon_run(task_mgr_handle hdl)
 
 status_t task_daemon_stop(task_mgr_handle hdl)
 {
-    int i;
-    int retval = 0;
-    msg_t *msg = NULL;
     status_t status = OSA_SOK;
-    task_t tsklists[TASKLIST_TSK_MAX];
 
-    for (i = 0; i < OSA_ARRAYSIZE(tsklists); i++) {
-        tsklists[i] = TASK_INVALID_TSK;
-    }
-
-    for (i = 0; i < hdl->m_cur_cnt; i++) {
-        tsklists[i] = hdl->m_tsklists[i].m_tsk;
-    }
-
-    /*
-     *  Broadcast EXIT cmd.
-     */
-    fprintf(stderr, "task_daemon_stop: Broadcast EXIT cmd\n");
-    status = task_broadcast(tsklists, hdl->m_cur_tsk, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
-
-    for (i = 0; i < hdl->m_cur_cnt; i++) {
-
-        status |= task_recv_msg(hdl->m_cur_tsk, &msg, MSG_TYPE_ACK);
-
-        /*
-         *  Checkout the status.
-         */
-        retval = msg_get_status(msg);
-
-        //msg_set_flags(msg, 0);
-        if (!OSA_ISERROR(retval)) {
-            DBG(DBG_INFO, "task_daemon_stop: TASK[0x%x] de-initialized successfully!\n", msg->u.m_tsk_msg.m_frm);
-        } else {
-            DBG(DBG_INFO, "task_daemon_stop: TASK[0x%x] de-initialized error!\n", msg->u.m_tsk_msg.m_frm);
-        }
-
-        status |= task_ack_free_msg(hdl->m_cur_tsk, msg);
-    }
+    status = task_mgr_broadcast(TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
     return status;
 }
@@ -531,18 +458,10 @@ status_t task_daemon_task_create(task_mgr_handle hdl)
     int i;
     status_t status = OSA_SOK;
 
-    status = task_create("TSK_MGR_MAIN", NULL, 0, 0, 0, NULL, &hdl->m_cur_tsk);
+    //status = task_create("TSK_MGR_MAIN", NULL, 0, 0, 0, NULL, &hdl->m_cur_tsk);
 
     for (i = 0; i < hdl->m_cur_cnt; i++) {
-        status = task_create(
-                hdl->m_tsklists[i].m_tsk_obj->m_name,
-                hdl->m_tsklists[i].m_tsk_obj->m_main,
-                hdl->m_tsklists[i].m_tsk_obj->m_pri,
-                hdl->m_tsklists[i].m_tsk_obj->m_stack_size,
-                hdl->m_tsklists[i].m_tsk_obj->m_init_state,
-                hdl->m_tsklists[i].m_tsk_obj->m_userdata,
-                &hdl->m_tsklists[i].m_tsk
-                );
+        status = task_mgr_register(hdl->m_tsklists[i]); 
 
         OSA_assert(OSA_SOK == status);
     }
@@ -557,12 +476,10 @@ status_t task_daemon_task_delete(task_mgr_handle hdl)
 
     for (i = 0; i < hdl->m_cur_cnt; i++) {
 
-        status = task_delete(&hdl->m_tsklists[i].m_tsk);
+        status = task_mgr_unregister(hdl->m_tsklists[i]);
 
         OSA_assert(OSA_SOK == status);
     }
-
-    status = task_delete(&hdl->m_cur_tsk);
 
     return status;
 }
@@ -584,6 +501,23 @@ tsk_mgr_daemon_process_msg(task_mgr_handle hdl, task_t tsk, msg_t *msg)
     }
 
     return status;
+}
+
+static int
+task_mgr_daemon_print_menu(task_mgr_handle hdl)
+{
+    int i;
+    static char input[32];
+
+    for (i = 0; i < OSA_ARRAYSIZE(menu); i++) {
+        fprintf(stdout, "%s", menu[i]);
+    }
+
+    fprintf(stdout, "Please enter the choice: ");
+
+    fgets(input, sizeof(input) - 1, stdin);
+
+    return input[0];
 }
 
 #if defined(__cplusplus)

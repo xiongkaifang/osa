@@ -38,6 +38,7 @@
 #include "osa_msgq_mgr.h"
 #include "osa_mailbox.h"
 #include "osa_task.h"
+#include "osa_task_mgr.h"
 #include "osa_mutex.h"
 #include "tsk_common.h"
 
@@ -72,19 +73,12 @@ extern "C" {
  *  ----------------------------------------------------------------------------
  */
 enum {
-    TASK_MGR_TSK1 = 0,
-    TASK_MGR_TSK2 = 1,
-    TASK_MGR_TSK3 = 2,
-    TASK_MGR_TSK4 = 3,
-    TASK_MGR_TSK5 = 4,
-};
-
-struct __task_object_t; typedef struct __task_object_t task_object_t;
-struct __task_object_t
-{
-    unsigned int           m_reserved[2];
-    task_common_object_t * m_tsk_obj;
-    task_t                 m_tsk;
+    TASK_MGR_TSK0 = 0,
+    TASK_MGR_TSK1 = 1,
+    TASK_MGR_TSK2 = 2,
+    TASK_MGR_TSK3 = 3,
+    TASK_MGR_TSK4 = 4,
+    TASK_MGR_TSK5 = 5,
 };
 
 struct __task_mgr_params_t;
@@ -93,7 +87,7 @@ struct __task_mgr_params_t
 {
     msgq_mgr_prm_t          m_msgq_mgr_prm;
     mailbox_system_prm_t    m_mbx_sys_prm;
-    tasklist_params_t       m_tsklist_prm;
+    task_mgr_prm_t          m_tsk_mgr_prm;
 };
 
 struct __task_mgr_object_t
@@ -105,7 +99,7 @@ struct __task_mgr_object_t
     task_t                  m_cur_tsk;
 
     mutex_t                 m_mutex;
-    task_object_t           m_tsklists[TASK_MGR_TSK_MAX];
+    task_object_t         * m_tsklists[TASK_MGR_TSK_MAX];
 };
 
 typedef struct __task_mgr_object_t task_mgr_object_t;

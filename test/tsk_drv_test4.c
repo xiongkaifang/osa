@@ -75,7 +75,7 @@ static task_driver_test4_object_t glb_tsk_drv_test4 = {
     .m_name       = "TSK_TEST_OBJECT4"
 };
 
-task_common_object_t glb_tsk_obj4 = {
+task_object_t glb_tsk_obj4 = {
     .m_name       = "TSK_TEST_OBJECT4",
     .m_main       = tsk_drv_test4_main,
     .m_pri        = 0,
@@ -265,7 +265,9 @@ static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg)
         /*
          *   Do the task.
          */
+#if defined(TASK_MGR_DEBUG)
         fprintf(stderr, "task_do_process: TASK[0x%x]: %s is running...\n", tsk, tsk_hdl->m_name);
+#endif  // if defined TASK_MGR_DEBUG
 
         sleep(4);
 

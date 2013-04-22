@@ -36,6 +36,7 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa_task.h"
+#include "osa_task_mgr.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -67,18 +68,6 @@ extern "C" {
  *  ----------------------------------------------------------------------------
  */
 typedef unsigned int HANDLE;
-
-struct __task_common_object_t
-{
-    const char      * m_name;
-    TASK_MAIN         m_main;
-    unsigned int      m_pri;
-    unsigned int      m_stack_size;
-    unsigned int      m_init_state;
-    void            * m_userdata;
-};
-
-typedef struct __task_common_object_t task_common_object_t;
 
 /*
  *  --------------------- Public function declaration --------------------------
