@@ -100,7 +100,17 @@ static const char * menu[] = {
     "   3     Not used\n",
     "   4     Not used\n",
     "   5     Not used\n",
+    "   t     Task operate dynamically\n",
     "   q     Quit from this task daemon.\n"
+};
+
+static const char * submenu[] = {
+    "\nChoice | Description\n",
+    "---------------------------------\n",
+    "  'c'    Create task5.\n",
+    "  'd'    Delete task5\n",
+    "  's'    Start task5\n",
+    "  'p'    Stop task5\n",
 };
 
 /*
@@ -151,6 +161,9 @@ tsk_mgr_daemon_process_msg(task_mgr_handle hdk, task_t tsk, msg_t *msg);
 
 static int
 task_mgr_daemon_print_menu(task_mgr_handle hdl);
+
+static status_t
+task_mgr_daemon_dynamic(task_mgr_handle hdl);
 
 status_t tsk_mgr_daemon(task_mgr_handle hdl);
 
@@ -328,7 +341,7 @@ status_t task_daemon_init(task_mgr_handle hdl)
     status |= mutex_create(&hdl->m_mutex);
 
     hdl->m_tsk_cnt = TASK_MGR_TSK_MAX;
-    hdl->m_cur_cnt = 6;
+    hdl->m_cur_cnt = 5;
     
     hdl->m_tsklists[TASK_MGR_TSK0] = &glb_tsk_mgr;
     hdl->m_tsklists[TASK_MGR_TSK1] = &glb_tsk_obj1;
@@ -401,6 +414,10 @@ status_t task_daemon_run(task_mgr_handle hdl)
 
             case '5':
                 DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                break;
+
+            case 't':
+                status = task_mgr_daemon_dynamic(hdl);
                 break;
 
             case 'q':
@@ -518,6 +535,53 @@ task_mgr_daemon_print_menu(task_mgr_handle hdl)
     fgets(input, sizeof(input) - 1, stdin);
 
     return input[0];
+}
+
+static int
+task_mgr_daemon_print_submenu(void)
+{
+    int i;
+    static char input[32];
+
+    for (i = 0; i < OSA_ARRAYSIZE(submenu); i++) {
+        fprintf(stdout, "%s", submenu[i]);
+    }
+
+    fprintf(stdout, "Please enter the choice: ");
+
+    fgets(input, sizeof(input) - 1, stdin);
+
+    return input[0];
+}
+
+static status_t
+task_mgr_daemon_dynamic(task_mgr_handle hdl)
+{
+    int ch;
+
+    ch = task_mgr_daemon_print_submenu();
+
+    switch(ch)
+    {
+        case 'c':
+            task_mgr_register(hdl->m_tsklists[TASK_MGR_TSK5]);
+            break;
+
+        case 'd':
+            task_mgr_unregister(hdl->m_tsklists[TASK_MGR_TSK5]);
+            break;
+
+        case 's':
+            task_mgr_start(hdl->m_tsklists[TASK_MGR_TSK5]);
+            break;
+
+        case 'p':
+            task_mgr_stop(hdl->m_tsklists[TASK_MGR_TSK5]);
+            break;
+
+        default:
+            break;
+    }
 }
 
 #if defined(__cplusplus)
