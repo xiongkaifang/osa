@@ -247,6 +247,18 @@ status_t task_mgr_register(task_object_t *tsk)
             glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_CREATE_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
 }
 
+status_t task_mgr_start(task_object_t *tsk)
+{
+    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
+            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_START_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+}
+
+status_t task_mgr_stop(task_object_t *tsk)
+{
+    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
+            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_STOP_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+}
+
 status_t task_mgr_unregister(task_object_t *tsk)
 {
     return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
