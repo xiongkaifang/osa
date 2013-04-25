@@ -641,18 +641,24 @@ status_t task_delete(task_t *tsk)
 	
 	status = task_get_state((*tsk), &state);
 	if (state != TASK_STATE_EXIT) {
+        msg_t *msg = NULL;
         msg_t *rcv_msg = NULL;
-        msg_t msg;
-        msg_init(&msg);
-        msg_set_payload_ptr(&msg, NULL);
-        msg_set_payload_size(&msg, 0);
-        msg_set_cmd(&msg, TASK_CMD_EXIT);
-        msg_set_flags(&msg, MSG_FLAGS_WAIT_ACK);
-        msg_set_status(&msg, OSA_SOK);
 
-        status |= task_send_msg((*tsk), (*tsk), &msg, MSG_TYPE_CMD);
-        status |= task_recv_msg((*tsk), &rcv_msg, MSG_TYPE_CMD);
-        OSA_assert(rcv_msg == (&msg));
+        status = task_alloc_msg(sizeof(*msg), &msg);
+        if (!OSA_ISERROR(status) && msg != NULL) {
+            msg_init(msg);
+            msg_set_payload_ptr(msg, NULL);
+            msg_set_payload_size(msg, 0);
+            msg_set_cmd(msg, TASK_CMD_EXIT);
+            msg_set_flags(msg, MSG_FLAGS_WAIT_ACK);
+            msg_set_status(msg, OSA_SOK);
+
+            status |= task_send_msg((*tsk), (*tsk), msg, MSG_TYPE_CMD);
+            status |= task_recv_msg((*tsk), &rcv_msg, MSG_TYPE_CMD);
+            OSA_assert(rcv_msg == msg);
+
+            task_free_msg(sizeof(*msg), rcv_msg);
+        }
 	}
 
     /*
