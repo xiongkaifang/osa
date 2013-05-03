@@ -31,6 +31,8 @@
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
 #include "osa_task_mgr.h"
+#include "osa_msgq_mgr.h"
+#include "osa_mailbox.h"
 #include "osa_task.h"
 #include "osa_mutex.h"
 #include "dlist.h"
@@ -150,6 +152,12 @@ OSA_DECLARE_AND_INIT_MUTEX(glb_tsk_mgr_mutex);
  *
  *  ============================================================================
  */
+static status_t
+__task_mgr_env_initialize(task_mgr_prm_t *prm);
+
+static status_t
+__task_mgr_env_deinitialize(void);
+
 static status_t
 __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm);
 
@@ -321,19 +329,52 @@ status_t task_mgr_deinit(void)
  *  ============================================================================
  */
 static status_t
+__task_mgr_env_initialize(task_mgr_prm_t *prm)
+{
+    status_t status = OSA_SOK;
+    msgq_mgr_prm_t msgq_mgr_prm;
+    mailbox_system_prm_t mbx_sys_prm;
+    tasklist_params_t tsklist_prm;
+
+    msgq_mgr_prm.m_msgq_cnt = prm->m_tsk_cnt * 2;
+    mbx_sys_prm.m_mbx_cnt   = prm->m_tsk_cnt;
+    tsklist_prm.m_tsk_cnt   = prm->m_tsk_cnt;
+
+    status |= msgq_mgr_init(&msgq_mgr_prm);
+
+    status |= mailbox_system_init(&mbx_sys_prm);
+
+    status |= tasklist_init(&tsklist_prm);
+    
+    OSA_assert(OSA_SOK == status);
+
+    return status;
+}
+
+static status_t
+__task_mgr_env_deinitialize(void)
+{
+    status_t status = OSA_SOK;
+
+    status |= tasklist_deinit();
+
+    status |= mailbox_system_deinit();
+
+    status |= msgq_mgr_deinit();
+
+    return status;
+}
+
+static status_t
 __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
 {
     int i;
 	status_t status = OSA_SOK;
 
     /*
-     *  Initialize tasklist object.
+     *  Initialize task manager env.
      */
-    tasklist_params_t tsklist_prm;
-
-    tsklist_prm.m_tsk_cnt = prm->m_tsk_cnt;
-
-    status = tasklist_init(&tsklist_prm);
+    status = __task_mgr_env_initialize(prm);
     if (OSA_ISERROR(status)) {
         return status;
     }
@@ -353,6 +394,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
     status = task_alloc_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t **)&tskmgr->m_msgs);
     if (OSA_ISERROR(status)) {
         mutex_delete(&tskmgr->m_mutex);
+        __task_mgr_env_deinitialize();
         return status;
     }
 
@@ -387,7 +429,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
         task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
-        tasklist_deinit();
+        __task_mgr_env_deinitialize();
         return status;
     }
 
@@ -403,7 +445,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
         task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
-        tasklist_deinit();
+        __task_mgr_env_deinitialize();
         return status;
     }
 
@@ -419,7 +461,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
         task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
-        tasklist_deinit();
+        __task_mgr_env_deinitialize();
         return status;
     }
 
@@ -526,9 +568,9 @@ __task_mgr_deinitialize(task_mgr_t *tskmgr)
     status |= mutex_delete(&tskmgr->m_mutex);
 
     /*
-     *  Deinitialize tasklist object.
+     *  Deinitialize task mansger env.
      */
-    status |= tasklist_deinit();
+    status |= __task_mgr_env_deinitialize();
 
     tskmgr->m_initialized = FALSE;
 

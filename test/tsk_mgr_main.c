@@ -173,7 +173,6 @@ static void tsk_mgr_daemon_signal_handler(int sig)
         fprintf(stderr, "SIGINT signal caught, system shutdown now...\n");
 
         task_mgr_synchronize(glb_tsk_mgr_obj.m_tsklists[TASK_MGR_TSK0], TASK_CMD_EXIT, NULL, 0, 0);
-
     } else {
         fprintf(stderr, "Invalid signal caught\n");
     }
@@ -249,21 +248,6 @@ status_t system_init(task_mgr_handle hdl)
     debugger_setlevel(DBG_INFO);
 
     /*
-     *  Initialize msgq manager.
-     */
-    hdl->m_params.m_msgq_mgr_prm.m_msgq_cnt = 20;
-
-    fprintf(stderr, "system_init: Initiailze msgq manager.\n");
-    status |= msgq_mgr_init(&hdl->m_params.m_msgq_mgr_prm);
-
-    /*
-     *  Initialize mailbox system.
-     */
-    fprintf(stderr, "system_init: Initiailze mailbox system.\n");
-    hdl->m_params.m_mbx_sys_prm.m_mbx_cnt = 10;
-    status |= mailbox_system_init(&hdl->m_params.m_mbx_sys_prm);
-
-    /*
      *  Initialize tasklist.
      */
     fprintf(stderr, "system_init: Initiailze task manager.\n");
@@ -285,18 +269,6 @@ status_t system_deinit(task_mgr_handle hdl)
      */
     status |= task_mgr_deinit();
     fprintf(stderr, "system_deinit: De-initialize task manager.\n");
-
-    /*
-     *  Finalize mailbox system.
-     */
-    status |= mailbox_system_deinit();
-    fprintf(stderr, "system_deinit: De-initialize mailbox system.\n");
-
-    /*
-     *  Finalize msgq manager.
-     */
-    status |= msgq_mgr_deinit();
-    fprintf(stderr, "system_deinit: De-initialize msgq manager.\n");
 
     /*
      *  Finalize debug module.

@@ -35,8 +35,6 @@
 /*  --------------------- Include system headers ---------------------------- */
 
 /*  --------------------- Include user headers   ---------------------------- */
-#include "osa_msgq_mgr.h"
-#include "osa_mailbox.h"
 #include "osa_task.h"
 #include "osa_task_mgr.h"
 #include "osa_mutex.h"
@@ -85,8 +83,6 @@ struct __task_mgr_params_t;
 typedef struct __task_mgr_params_t task_mgr_params_t;
 struct __task_mgr_params_t
 {
-    msgq_mgr_prm_t          m_msgq_mgr_prm;
-    mailbox_system_prm_t    m_mbx_sys_prm;
     task_mgr_prm_t          m_tsk_mgr_prm;
 };
 
