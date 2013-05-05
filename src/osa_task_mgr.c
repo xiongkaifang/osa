@@ -93,6 +93,14 @@ struct __task_mgr_t
 
 typedef struct __task_mgr_t * task_mgr_handle;
 
+struct __task_mgr_find_prm_t;
+typedef struct __task_mgr_find_prm_t task_mgr_find_prm_t;
+struct __task_mgr_find_prm_t
+{
+    unsigned char * m_name;     //  [IN]
+    task_object_t * m_task;     //  [OUT]
+};
+
 /*
  *  --------------------- Global variable definition ---------------------------
  */
@@ -186,6 +194,9 @@ __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, uns
 
 static status_t
 __task_mgr_instruments(task_mgr_t *tskmgr);
+
+static status_t
+__task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm);
 
 static inline unsigned int
 __task_mgr_get_msg_id(task_mgr_t *tskmgr)
@@ -288,7 +299,20 @@ status_t task_mgr_find(const char *name, task_object_t **ptsk)
 {
     status_t status = OSA_SOK;
 
+    (*ptsk) = NULL;
+
     /* TODO */
+    task_mgr_find_prm_t prm;
+
+    prm.m_name = (unsigned char *)name;
+    prm.m_task = NULL;
+
+    status = __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
+            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_FIND_TASK, &prm, sizeof(prm), MSG_FLAGS_WAIT_ACK);
+
+    if (!OSA_ISERROR(status)) {
+        (*ptsk) = prm.m_task;
+    }
 
     return status;
 }
@@ -674,6 +698,19 @@ static status_t
 __task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk)
 {
     status_t status = OSA_SOK;
+    task_mgr_find_prm_t prm;
+
+    /*
+     *  Check the task wheter it is already registered.
+     */
+    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_task = NULL;
+    status = __task_mgr_find(hdl, &prm);
+
+    if (!OSA_ISERROR(status)) {
+        OSA_assert(prm.m_task == tsk);
+        return status;
+    }
 
     /* Create task */
     status = task_create(tsk->m_name,
@@ -779,9 +816,47 @@ __task_mgr_instruments(task_mgr_t *tskmgr)
 }
 
 static status_t
+__task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm)
+{
+    int i;
+    status_t retval = OSA_ENOENT;
+    status_t status = OSA_SOK;
+    task_object_t * cur_tsk_node = NULL;
+    task_object_t * nex_tsk_node = NULL;
+
+    prm->m_task = NULL;
+
+    mutex_lock(&tskmgr->m_mutex);
+
+    status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
+    while ((cur_tsk_node != NULL) && !OSA_ISERROR(status)) {
+
+        if (strcmp(cur_tsk_node->m_name, prm->m_name) == 0) {
+            prm->m_task = cur_tsk_node;
+            retval = OSA_SOK;
+            break;
+        }
+
+        status = dlist_next(&tskmgr->m_tsklists,
+                            (dlist_element_t *) cur_tsk_node,
+                            (dlist_element_t **)&nex_tsk_node
+                            );
+        if (!OSA_ISERROR(status)) {
+            cur_tsk_node = nex_tsk_node;
+        } else {
+            break;
+        }
+    }
+
+    mutex_unlock(&tskmgr->m_mutex);
+
+    return retval;
+}
+
+static status_t
 __task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg)
 {
-	status_t	   status;
+	status_t	   status = OSA_SOK;
     task_state_t   state;
     task_mgr_handle hdl = NULL;
 	
@@ -822,6 +897,10 @@ __task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg)
 
         case TASK_MGR_CMD_INSTRUMENTS:
             status = __task_mgr_instruments(hdl);
+            break;
+
+        case TASK_MGR_CMD_FIND_TASK:
+            status = __task_mgr_find(hdl, (task_mgr_find_prm_t *)msg_get_payload_ptr((*msg)));
             break;
 
         default:
