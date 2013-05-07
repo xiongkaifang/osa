@@ -57,6 +57,7 @@ extern "C" {
 #define OSA_ENOENT      3
 #define OSA_EEXIST      4
 #define OSA_EARGS       5
+#define OSA_EINVAL      6
 
 #define OSA_ISERROR(status)     (status != OSA_SOK)
 

@@ -700,6 +700,10 @@ __task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk)
     status_t status = OSA_SOK;
     task_mgr_find_prm_t prm;
 
+    if (tsk == NULL) {
+        return OSA_EINVAL;
+    }
+
     /*
      *  Check the task wheter it is already registered.
      */
@@ -743,6 +747,22 @@ static status_t
 __task_mgr_start_tsk(task_mgr_handle hdl, task_object_t *tsk)
 {
     status_t status = OSA_SOK;
+    task_mgr_find_prm_t prm;
+
+    if (tsk == NULL) {
+        return OSA_EINVAL;
+    }
+
+    /*
+     *  Check the task wheter it is already registered.
+     */
+    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_task = NULL;
+    status = __task_mgr_find(hdl, &prm);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
 
     status = __task_mgr_synchronize(tsk->m_task, hdl->m_mgr_tsk.m_task, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
     if (OSA_ISERROR(status)) {
@@ -757,6 +777,24 @@ __task_mgr_start_tsk(task_mgr_handle hdl, task_object_t *tsk)
 static status_t
 __task_mgr_stop_tsk(task_mgr_handle hdl, task_object_t *tsk)
 {
+    status_t status = OSA_SOK;
+    task_mgr_find_prm_t prm;
+
+    if (tsk == NULL) {
+        return OSA_EINVAL;
+    }
+
+    /*
+     *  Check the task wheter it is already registered.
+     */
+    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_task = NULL;
+    status = __task_mgr_find(hdl, &prm);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
+
     return __task_mgr_synchronize(tsk->m_task, hdl->m_mgr_tsk.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 }
 
@@ -764,6 +802,22 @@ static status_t
 __task_mgr_unregister_tsk(task_mgr_handle hdl, task_object_t *tsk)
 {
     status_t status = OSA_SOK;
+    task_mgr_find_prm_t prm;
+
+    if (tsk == NULL) {
+        return OSA_EINVAL;
+    }
+
+    /*
+     *  Check the task wheter it is already registered.
+     */
+    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_task = NULL;
+    status = __task_mgr_find(hdl, &prm);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
 
     /* Delete task */
     status = task_delete(&tsk->m_task);
