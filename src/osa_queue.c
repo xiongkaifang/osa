@@ -275,7 +275,7 @@ Bool     queue_is_empty(queue_t *queue)
     return is_empty;
 }
 
-status_t queue_delele(queue_t *queue)
+status_t queue_delete(queue_t *queue)
 {
     status_t status = OSA_SOK;
 

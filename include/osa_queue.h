@@ -122,7 +122,7 @@ status_t queue_get(queue_t *queue, unsigned int *value, unsigned int timeout);
 status_t queue_peek(queue_t *queue, unsigned int *value);
 status_t queue_count(queue_t *queue, unsigned int *count);
 Bool     queue_is_empty(queue_t *queue);
-status_t queue_delele(queue_t *queue);
+status_t queue_delete(queue_t *queue);
 
 #if defined(__cplusplus)
 }
