@@ -417,6 +417,32 @@ int  dlist_search_element(dlist_t *          list,
     return status;
 }
 
+int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
+{
+    int               status = 0;
+    int               retval = 0;
+    dlist_element_t * temp   = NULL;
+    dlist_element_t * temp1  = NULL;
+
+    DBG(DBG_DETAILED, "dlist_map: Enter (list=0x%x, apply_fxn=0x%x, "
+            "data=0x%x)\n", list, apply_fxn, data);
+
+    if (list == NULL || apply_fxn == NULL) {
+        status = -EINVAL;
+    } else {
+        status = dlist_first(list, &temp);
+        while (SUCCEEDED(status) && temp != NULL) {
+
+            retval = (*apply_fxn)(temp, data);
+            temp1  = temp;
+            status = dlist_next(list, temp1, &temp);
+        }
+    }
+
+    DBG(DBG_DETAILED, "dlist_map: Exit (list=0x%x, status=0x%x\n", list, status);
+
+    return status;
+}
 
 
 /*

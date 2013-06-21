@@ -56,6 +56,8 @@ struct __dlist_t {
 
 typedef bool (*DLIST_MATCH_FXN)(dlist_element_t * elem, void * data);
 
+typedef int  (*DLIST_APPLY_FXN)(dlist_element_t * elem, void * data);
+
 /*
  *  --------------------- Public function declaration --------------------------
  */
@@ -118,6 +120,8 @@ int  dlist_search_element(dlist_t *          list,
                           void    *          data,
                           dlist_element_t ** elem,
                           DLIST_MATCH_FXN    match_fxn);
+
+int dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data);
 
 #if defined(__cplusplus)
 }
