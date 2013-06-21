@@ -27,6 +27,7 @@
 
 /*  --------------------- Include system headers ---------------------------- */
 #include <stdio.h>
+#include <string.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa_mailbox.h"
@@ -634,40 +635,29 @@ mailbox_system_get_mbx_id(mailbox_system_handle hdl)
     return id;
 }
 
-status_t mailbox_system_internal_find(mailbox_system_t *mbx_sys, const char *name, mailbox_node_t **node)
+static bool
+mailbox_system_find_match_fxn(dlist_element_t *elem, void *data)
 {
-    status_t retval = OSA_ENOENT;
-    status_t status = OSA_SOK;
-    Bool found = FALSE;
-    mailbox_system_handle hdl = mbx_sys;
-    mailbox_node_t  * cur_nod_hdl = NULL;
-    mailbox_node_t  * nex_nod_hdl = NULL;
+    return (strncmp(((mailbox_node_t *)elem)->m_name,
+                    (const char *)data,
+                    sizeof(((mailbox_node_t *)elem)->m_name)) == 0);
+}
+
+static status_t
+mailbox_system_internal_find(mailbox_system_t *mbx_sys, const char *name, mailbox_node_t **node)
+{
+    status_t status = OSA_ENOENT;
 
     (*node) = NULL;
 
-    status = dlist_first(&hdl->m_busy_list, (dlist_element_t **)&cur_nod_hdl);
-    while ((cur_nod_hdl != NULL) && !OSA_ISERROR(status)) {
+    status = dlist_search_element(&mbx_sys->m_busy_list, (void *)name,
+                                  (dlist_element_t **)node, mailbox_system_find_match_fxn);
 
-        if (strncmp(cur_nod_hdl->m_name, name,
-                    sizeof(cur_nod_hdl->m_name) - 1) == 0) {
-            found = TRUE;
-            (*node) = cur_nod_hdl;
-            retval = OSA_SOK;
-            break;
-        }
-
-        status = dlist_next(&hdl->m_busy_list,
-                            (dlist_element_t *) cur_nod_hdl,
-                            (dlist_element_t **)&nex_nod_hdl
-                            );
-        if (!OSA_ISERROR(status)) {
-            cur_nod_hdl = nex_nod_hdl;
-        } else {
-            break;
-        }
+    if (!OSA_ISERROR(status)) {
+        status = OSA_SOK;
     }
 
-    return retval;
+    return status;
 }
 
 #if defined(__cplusplus)

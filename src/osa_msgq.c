@@ -27,6 +27,7 @@
 
 /*  --------------------- Include system headers ---------------------------- */
 #include <stdio.h>
+#include <string.h>
 #include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
@@ -587,39 +588,29 @@ status_t msgq_mgr_deinit(void)
  *
  *  ============================================================================
  */
+static bool
+msgq_mgr_find_match_fxn(dlist_element_t *elem, void *data)
+{
+    return (strncmp(((msgq_node_t *)elem)->m_name,
+                    (const char *)data,
+                    sizeof(((msgq_node_t *)elem)->m_name)) == 0);
+}
+
 static status_t
 msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_node_t **node)
 {
-    status_t retval = OSA_ENOENT;
-    status_t status = OSA_SOK;
-    Bool found = FALSE;
-    msgq_mgr_handle hdl = msgq_mgr;
-    msgq_node_t  * cur_nod_hdl = NULL;
-    msgq_node_t  * nex_nod_hdl = NULL;
+    status_t status = OSA_ENOENT;
 
-    status = dlist_first(&hdl->m_busy_list, (dlist_element_t **)&cur_nod_hdl);
-    while ((cur_nod_hdl != NULL) && !OSA_ISERROR(status)) {
+    (*node) = NULL;
 
-        if (strncmp(cur_nod_hdl->m_name, name,
-                    sizeof(cur_nod_hdl->m_name) - 1) == 0) {
-            found = TRUE;
-            (*node) = cur_nod_hdl;
-            retval = OSA_SOK;
-            break;
-        }
+    status = dlist_search_element(&msgq_mgr->m_busy_list, (void *)name,
+                                  (dlist_element_t **)node, msgq_mgr_find_match_fxn);
 
-        status = dlist_next(&hdl->m_busy_list,
-                            (dlist_element_t *) cur_nod_hdl,
-                            (dlist_element_t **)&nex_nod_hdl
-                            );
-        if (!OSA_ISERROR(status)) {
-            cur_nod_hdl = nex_nod_hdl;
-        } else {
-            break;
-        }
+    if (!OSA_ISERROR(status)) {
+        status = OSA_SOK;
     }
 
-    return retval;
+    return status;
 }
 
 #if defined(__cplusplus)
