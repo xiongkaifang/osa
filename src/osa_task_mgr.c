@@ -87,7 +87,6 @@ struct __task_mgr_t
     mutex_t         m_mutex;
     dlist_t         m_tsklists;
     dlist_t         m_free_list;
-    dlist_t         m_busy_list;
     task_object_t   m_mgr_tsk;
 };
 
@@ -412,7 +411,6 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
 
     status = dlist_init(&tskmgr->m_tsklists);
     status = dlist_init(&tskmgr->m_free_list);
-    status = dlist_init(&tskmgr->m_busy_list);
 
     /* Allocate msgs */
     status = task_alloc_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t **)&tskmgr->m_msgs);
@@ -514,7 +512,6 @@ __task_mgr_alloc_msg(task_mgr_t *tskmgr, msg_t **msg)
 
     if (!dlist_is_empty(&tskmgr->m_free_list)) {
         status = dlist_get_head(&tskmgr->m_free_list, (dlist_element_t **)msg);
-        status = dlist_put_tail(&tskmgr->m_busy_list, (dlist_element_t *)(*msg));
 
         OSA_assert(OSA_SOK == status);
     }
@@ -531,7 +528,6 @@ __task_mgr_free_msg(task_mgr_t *tskmgr, msg_t *msg)
 
     mutex_lock(&tskmgr->m_mutex);
 
-    //status |= dlist_remove_element(&tskmgr->m_busy_list, (dlist_element_t *)msg);
     status |= dlist_put_tail(&tskmgr->m_free_list, (dlist_element_t *)msg);
 
     OSA_assert(OSA_SOK == status);
@@ -610,12 +606,15 @@ __task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned
     msg_t *msg = NULL;
     status_t status = OSA_SOK;
     task_t tsklists[TASK_MGR_TSK_MAX];
+    task_state_t    tsk_state;
     task_object_t * cur_tsk_node = NULL;
     task_object_t * nex_tsk_node = NULL;
 
     for (i = 0; i < OSA_ARRAYSIZE(tsklists); i++) {
         tsklists[i] = TASK_INVALID_TSK;
     }
+
+    mutex_lock(&tskmgr->m_mutex);
 
     status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
     OSA_assert(OSA_SOK == status);
@@ -626,12 +625,16 @@ __task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned
                             (dlist_element_t **)&nex_tsk_node
                            );
         if (!OSA_ISERROR(status) && nex_tsk_node != NULL) {
-            if (nex_tsk_node->m_main != NULL) {
+            status = task_get_state(nex_tsk_node->m_task, &tsk_state);
+            OSA_assert(OSA_SOK == status);
+            if ((nex_tsk_node->m_main != NULL) && (tsk_state != TASK_STATE_EXIT)) {
                 tsklists[msg_cnt++] = nex_tsk_node->m_task;
             }
             cur_tsk_node = nex_tsk_node;
         }
     } while (!OSA_ISERROR(status) && (nex_tsk_node != NULL));
+
+    mutex_unlock(&tskmgr->m_mutex);
 
     if (msg_cnt == 0) {
         return OSA_SOK;
@@ -833,78 +836,78 @@ __task_mgr_unregister_tsk(task_mgr_handle hdl, task_object_t *tsk)
 }
 
 static status_t
+__task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
+{
+    static int      cnt      = 0;
+    status_t        status   = OSA_SOK;
+    task_state_t    state;
+    task_mgr_t    * tskmgr   = NULL;
+    task_object_t * tsk_node = NULL;
+
+    tsk_node = (task_object_t *)elem;
+    tskmgr   = (task_mgr_t *   )data;
+
+    status = task_get_state(tsk_node->m_task, &state);
+    OSA_assert(OSA_SOK == status);
+
+    fprintf(stdout, "[%02d] [0x%08x]   [%d]   [%s]\n", 
+            cnt++, tsk_node->m_task, state, tsk_node->m_name);
+
+    if (cnt >= tskmgr->m_tsk_cnt) {
+        cnt = 0;
+    }
+
+    return status;
+}
+
+static status_t
 __task_mgr_instruments(task_mgr_t *tskmgr)
 {
-    int cnt = 0;
     status_t status = OSA_SOK;
-    task_state_t state;
-    task_object_t * cur_tsk_node = NULL;
-    task_object_t * nex_tsk_node = NULL;
 
     fprintf(stdout, "\nTASK_MGR: Satatistics.\n"
                     " ID |    TASK    | STATE | NAME\n"
                     "--------------------------------------------------\n"
                     );
+
     mutex_lock(&tskmgr->m_mutex);
 
-    status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
-    
-    while (!OSA_ISERROR(status) && (cur_tsk_node != NULL)) {
-
-        task_get_state(cur_tsk_node->m_task, &state);
-
-        fprintf(stdout, "[%02d] [0x%08x]   [%d]   [%s]\n", 
-                cnt++, cur_tsk_node->m_task, state, cur_tsk_node->m_name);
-
-        status = dlist_next(&tskmgr->m_tsklists,
-                            (dlist_element_t *) cur_tsk_node,
-                            (dlist_element_t **)&nex_tsk_node
-                            );
-
-        cur_tsk_node = nex_tsk_node;
-    }
+    status = dlist_map(&tskmgr->m_tsklists, __task_mgr_instruments_apply_fxn, (void *)tskmgr);
 
     mutex_unlock(&tskmgr->m_mutex);
 
     return status;
 }
 
+static bool
+__task_mgr_find_match_fxn(dlist_element_t *elem, void *data)
+{
+    return (strcmp(((task_object_t *)elem)->m_name,
+                   ((task_mgr_find_prm_t *)data)->m_name) == 0);
+}
+
 static status_t
 __task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm)
 {
-    int i;
-    status_t retval = OSA_ENOENT;
-    status_t status = OSA_SOK;
-    task_object_t * cur_tsk_node = NULL;
-    task_object_t * nex_tsk_node = NULL;
+    status_t        status   = OSA_SOK;
+    task_object_t * tsk_node = NULL;
 
     prm->m_task = NULL;
 
     mutex_lock(&tskmgr->m_mutex);
 
-    status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
-    while ((cur_tsk_node != NULL) && !OSA_ISERROR(status)) {
-
-        if (strcmp(cur_tsk_node->m_name, prm->m_name) == 0) {
-            prm->m_task = cur_tsk_node;
-            retval = OSA_SOK;
-            break;
-        }
-
-        status = dlist_next(&tskmgr->m_tsklists,
-                            (dlist_element_t *) cur_tsk_node,
-                            (dlist_element_t **)&nex_tsk_node
-                            );
-        if (!OSA_ISERROR(status)) {
-            cur_tsk_node = nex_tsk_node;
-        } else {
-            break;
-        }
+    status = dlist_search_element(&tskmgr->m_tsklists, (void *)prm,
+                                 (dlist_element_t **)&tsk_node, __task_mgr_find_match_fxn);
+    if (!OSA_ISERROR(status)) {
+        prm->m_task = tsk_node;
+        status = OSA_SOK;
+    } else {
+        status = OSA_ENOENT;
     }
 
     mutex_unlock(&tskmgr->m_mutex);
 
-    return retval;
+    return status;
 }
 
 static status_t
