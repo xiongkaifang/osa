@@ -185,7 +185,13 @@ thread_handle   thread_create(Fxn fxn, thread_attrs_t * attrs, ...)
     thd_hdl = calloc(1, sizeof(*thd_hdl));
     if (thd_hdl != NULL) {
         thd_hdl->pri   = attrs->priority;
+
+        /*
+         *  TODO: Bug here, the attrs variable may be exist at stack,
+         *        the thd_hdl->name pointer may be invalid soon.
+         */
         thd_hdl->name  = attrs->name;
+
         thd_hdl->arg   = attrs->environ;
 
         thd_hdl->fxn   = fxn;

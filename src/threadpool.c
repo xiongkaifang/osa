@@ -7,6 +7,7 @@
  */
 
 /*  --------------------- Include system headers ---------------------------- */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -109,6 +110,8 @@ static threadpool_params_t default_thdp_params = {
     .m_max_tsk_nums = THREADPOOL_TASK_MAX
 };
 
+static unsigned int cur_cnt_index = 0;
+
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -165,6 +168,9 @@ __threadpool_alloc_task_cell(threadpool_handle hdl, thdpool_task_t **tsk);
 
 static status_t
 __threadpool_free_task_cell(threadpool_handle hdl, thdpool_task_t *tsk);
+
+static status_t
+__threadpool_instruments(threadpool_handle hdl, FILE *out);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -388,6 +394,31 @@ status_t threadpool_delete(threadpool_t *thdp)
     (*thdp) = (threadpool_t)NULL;
 
     DBG(DBG_DETAILED, "threadpool_delete: Exit(status=0x%x)\n", status);
+
+    return status;
+}
+
+status_t threadpool_instruments(threadpool_t thdp)
+{
+    status_t status = OSA_SOK;
+    threadpool_handle hdl = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
+
+    DBG(DBG_DETAILED, "threadpool_instruments: Enter (hdl=0x%x)\n", hdl);
+
+    if (hdl == NULL) {
+        DBG(DBG_ERROR, "threadpool_instruments: Invalid arguments.\n");
+        return -EINVAL;
+    }
+
+    /* Get threadpool mutex */
+    pthread_mutex_lock(&hdl->m_mutex);
+
+    status = __threadpool_instruments(hdl, stdout); 
+
+    /* Release threadpool mutex */
+    pthread_mutex_unlock(&hdl->m_mutex);
+
+    DBG(DBG_DETAILED, "threadpool_instruments: Exit (status=0x%x)\n", status);
 
     return status;
 }
@@ -811,6 +842,46 @@ __threadpool_free_task_cell(threadpool_handle hdl, thdpool_task_t *tsk)
     pthread_mutex_unlock(&hdl->m_tsk_mutex);
 
     DBG(DBG_DETAILED, "__threadpool_free_task_cell: Exit\n");
+
+    return status;
+}
+
+static status_t
+__threadpool_instruments_apply_fxn(dlist_element_t *elem, void *data)
+{
+    status_t        status  = OSA_SOK;
+    thread_handle   thd_hdl = NULL;
+
+    thd_hdl = (thread_handle)elem;
+    OSA_assert(thd_hdl != NULL);
+
+    fprintf(stdout, "    [%02d]    | [0x%08x] |    [%s]    | [%s]\n",
+            cur_cnt_index++, thd_hdl, (const char *)data, "Not implementation");
+
+    return status;
+}
+
+static status_t
+__threadpool_instruments(threadpool_handle hdl, FILE *out)
+{
+    status_t status = OSA_SOK;
+
+    fprintf(out, "\nTHDPOOL: Statistics.\n"
+                 "\nTotal Count |  Busy Count  |  Idle Count  |  Max Count  |  Min Count"
+                 "\n--------------------------------------------------------------------\n"
+           );
+    fprintf(out, "    [%02d]    |     [%02d]     |     [%02d]     |     [%02d]    |     [%02d]\n",
+                  hdl->m_cur_thd_nums, hdl->m_cur_thd_nums - hdl->m_idl_thd_nums,
+                  hdl->m_idl_thd_nums, hdl->m_max_thd_nums, hdl->m_min_thd_nums);
+
+    fprintf(out, "\n     ID     |    THREAD    |     STATE    |    NAME"
+                 "\n--------------------------------------------------------------------\n");
+
+    status |= dlist_map(&hdl->m_busy_list, __threadpool_instruments_apply_fxn, (void *)"Busy");
+    status |= dlist_map(&hdl->m_free_list, __threadpool_instruments_apply_fxn, (void *)"Idle");
+
+    /* Reset cur_cnt_index value */
+    cur_cnt_index = 0;
 
     return status;
 }
