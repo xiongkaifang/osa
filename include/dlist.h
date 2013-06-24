@@ -123,6 +123,8 @@ int  dlist_search_element(dlist_t *          list,
 
 int dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data);
 
+int dlist_count(dlist_t * list, unsigned int * count);
+
 #if defined(__cplusplus)
 }
 #endif  /* defined(__cplusplus) */

@@ -92,7 +92,8 @@ extern "C" {
  *
  *  ============================================================================
  */
-
+static int
+__dlist_count_apply_fxn(dlist_element_t * elem, void * data);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -444,6 +445,20 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
     return status;
 }
 
+int dlist_count(dlist_t * list, unsigned int * count)
+{
+    int               status = 0;
+
+    if (list == NULL || count == NULL) {
+        status = -EINVAL;
+    } else {
+        (*count) = 0;
+
+        status = dlist_map(list, __dlist_count_apply_fxn, (void *)count);
+    }
+
+    return status;
+}
 
 /*
  *  --------------------- Local function definition ----------------------------
@@ -457,6 +472,13 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
  *
  *  ============================================================================
  */
+static int
+__dlist_count_apply_fxn(dlist_element_t * elem, void * data)
+{
+    (*((unsigned int *)data))++;
+
+    return 0;
+}
 
 #if defined(__cplusplus)
 }
