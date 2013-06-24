@@ -325,8 +325,8 @@ status_t mailbox_wait_cmd(mailbox_t mbx, msg_t **msg, unsigned short cmd)
 	OSA_assert(mbx_hdl != NULL && msg != NULL);
 	
 	do {
-		status |= msgq_recv(mbx_hdl->m_msgqs[MAILBOX_MSGQ_CMD],
-							msg, OSA_TIMEOUT_FOREVER);
+		status = msgq_recv(mbx_hdl->m_msgqs[MAILBOX_MSGQ_CMD],
+						   msg, OSA_TIMEOUT_FOREVER);
 		OSA_assert(OSA_SOK == status);
 		
 		if (msg_get_cmd(*msg) == cmd) {
