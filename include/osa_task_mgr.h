@@ -103,7 +103,8 @@ enum __task_mgr_cmd_t
     TASK_MGR_CMD_STOP_TASK   = TASK_MGR_CMD_BASE + 3,
     TASK_MGR_CMD_DELETE_TASK = TASK_MGR_CMD_BASE + 4,
     TASK_MGR_CMD_FIND_TASK   = TASK_MGR_CMD_BASE + 5,
-    TASK_MGR_CMD_INSTRUMENTS = TASK_MGR_CMD_BASE + 6,
+    TASK_MGR_CMD_TASK_INSTRUMENTS    = TASK_MGR_CMD_BASE + 6,
+    TASK_MGR_CMD_THDPOOL_INSTRUMENTS = TASK_MGR_CMD_BASE + 7,
 };
 
 /*
@@ -154,7 +155,9 @@ status_t task_mgr_unregister(task_object_t *tsk);
 
 status_t task_mgr_find(const char *name, task_object_t **ptsk);
 
-status_t task_mgr_instruments(void);
+status_t task_mgr_task_instruments(void);
+
+status_t task_mgr_thdpool_instruments(void);
 
 status_t task_mgr_deinit(void);
 

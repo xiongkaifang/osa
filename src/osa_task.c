@@ -272,6 +272,11 @@ status_t tasklist_deinit(void)
 	return status;
 }
 
+status_t tasklist_instruments(void)
+{
+    return threadpool_instruments(glb_tsklist_obj.m_thdpool);
+}
+
 status_t task_create(const char *name, TASK_MAIN main,
 					 unsigned int pri, unsigned int stack_size,
 					 unsigned int init_state, void *userdata,
@@ -296,6 +301,7 @@ status_t task_create(const char *name, TASK_MAIN main,
 	tsk_hdl->m_tsk_main   = main;
 	tsk_hdl->m_tsk_pri    = pri;
 	tsk_hdl->m_stack_size = stack_size;
+    tsk_hdl->m_tsk_state  = init_state;
 	tsk_hdl->m_userdata   = userdata;
 	
     if (main == NULL) {
@@ -709,7 +715,7 @@ __tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
 	
 	thdpool_params.m_min_thd_nums = 3;
 	thdpool_params.m_max_thd_nums = tsklist->m_tsk_cnt;
-	thdpool_params.m_max_thd_nums = tsklist->m_tsk_cnt;
+	thdpool_params.m_max_tsk_nums = tsklist->m_tsk_cnt;
 	status = threadpool_create(&tsklist->m_thdpool, &thdpool_params);
 	if (OSA_ISERROR(status)) {
 		mutex_delete(&tsklist->m_mutex);

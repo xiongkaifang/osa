@@ -192,7 +192,10 @@ static status_t
 __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
 
 static status_t
-__task_mgr_instruments(task_mgr_t *tskmgr);
+__task_mgr_task_instruments(task_mgr_t *tskmgr);
+
+static status_t
+__task_mgr_thdpool_instruments(task_mgr_t *tskmgr);
 
 static status_t
 __task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm);
@@ -316,10 +319,16 @@ status_t task_mgr_find(const char *name, task_object_t **ptsk)
     return status;
 }
 
-status_t task_mgr_instruments(void)
+status_t task_mgr_task_instruments(void)
 {
     return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_INSTRUMENTS, NULL, 0, MSG_FLAGS_WAIT_ACK);
+            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_TASK_INSTRUMENTS, NULL, 0, MSG_FLAGS_WAIT_ACK);
+}
+
+status_t task_mgr_thdpool_instruments(void)
+{
+    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
+            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_THDPOOL_INSTRUMENTS, NULL, 0, MSG_FLAGS_WAIT_ACK);
 }
 
 status_t task_mgr_deinit(void)
@@ -850,7 +859,7 @@ __task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
     status = task_get_state(tsk_node->m_task, &state);
     OSA_assert(OSA_SOK == status);
 
-    fprintf(stdout, "[%02d] [0x%08x]   [%d]   [%s]\n", 
+    fprintf(stdout, "    [%02d]    | [0x%08x] |     [%02d]     | [%s]\n", 
             cnt++, tsk_node->m_task, state, tsk_node->m_name);
 
     if (cnt >= tskmgr->m_tsk_cnt) {
@@ -861,13 +870,13 @@ __task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
 }
 
 static status_t
-__task_mgr_instruments(task_mgr_t *tskmgr)
+__task_mgr_task_instruments(task_mgr_t *tskmgr)
 {
     status_t status = OSA_SOK;
 
     fprintf(stdout, "\nTASK_MGR: Satatistics.\n"
-                    " ID |    TASK    | STATE | NAME\n"
-                    "--------------------------------------------------\n"
+                    "\n     ID     |     TASK     |     STATE    |     NAME"
+                    "\n--------------------------------------------------------------------\n"
                     );
 
     mutex_lock(&tskmgr->m_mutex);
@@ -877,6 +886,12 @@ __task_mgr_instruments(task_mgr_t *tskmgr)
     mutex_unlock(&tskmgr->m_mutex);
 
     return status;
+}
+
+static status_t
+__task_mgr_thdpool_instruments(task_mgr_t *tskmgr)
+{
+    return tasklist_instruments();
 }
 
 static bool
@@ -952,8 +967,12 @@ __task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg)
             status = __task_mgr_unregister_tsk(hdl, (task_object_t *)msg_get_payload_ptr((*msg)));
             break;
 
-        case TASK_MGR_CMD_INSTRUMENTS:
-            status = __task_mgr_instruments(hdl);
+        case TASK_MGR_CMD_TASK_INSTRUMENTS:
+            status = __task_mgr_task_instruments(hdl);
+            break;
+
+        case TASK_MGR_CMD_THDPOOL_INSTRUMENTS:
+            status = __task_mgr_thdpool_instruments(hdl);
             break;
 
         case TASK_MGR_CMD_FIND_TASK:

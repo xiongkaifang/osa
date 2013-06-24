@@ -150,6 +150,7 @@ struct __tasklist_params_t
  *  ============================================================================
  */
 status_t tasklist_init(tasklist_params_t *prm);
+status_t tasklist_instruments(void);
 status_t tasklist_deinit(void);
 
 status_t task_create(const char *name, TASK_MAIN main,
