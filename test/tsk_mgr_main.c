@@ -369,11 +369,11 @@ status_t task_daemon_run(task_mgr_handle hdl)
         switch(ch)
         {
             case '1':
-                status = task_mgr_instruments();
+                status = task_mgr_task_instruments();
                 break;
 
             case '2':
-                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                status = task_mgr_thdpool_instruments();
                 break;
 
             case '3':
