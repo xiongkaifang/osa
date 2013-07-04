@@ -67,8 +67,8 @@ extern "C" {
  *  @Field:         Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __sem_t; typedef struct __sem_t sem_t;
-struct __sem_t
+struct __sem2_t; typedef struct __sem2_t sem2_t;
+struct __sem2_t
 {
 	unsigned int	m_count;
 	unsigned int	m_max_count;
@@ -108,10 +108,10 @@ struct __sem_t
  *
  *  ============================================================================
  */
-status_t sem_create(sem_t *sem, unsigned int max_cnt, unsigned int init_value);
-status_t sem_wait  (sem_t *sem, unsigned int timeout);
-status_t sem_signal(sem_t *sem);
-status_t sem_delete(sem_t *sem);
+status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value);
+status_t sem2_wait  (sem2_t *sem, unsigned int timeout);
+status_t sem2_signal(sem2_t *sem);
+status_t sem2_delete(sem2_t *sem);
 
 #if defined(__cplusplus)
 }

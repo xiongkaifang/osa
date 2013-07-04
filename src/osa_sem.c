@@ -137,7 +137,7 @@ extern "C" {
  *
  *  ============================================================================
  */
-status_t sem_create(sem_t *sem, unsigned int max_cnt, unsigned int init_value)
+status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value)
 {
     status_t status = OSA_SOK;
     pthread_mutexattr_t mutex_attr;
@@ -166,7 +166,7 @@ status_t sem_create(sem_t *sem, unsigned int max_cnt, unsigned int init_value)
     return status;
 }
 
-status_t sem_wait  (sem_t *sem, unsigned int timeout)
+status_t sem2_wait  (sem2_t *sem, unsigned int timeout)
 {
     status_t status = OSA_EFAIL;
 
@@ -191,7 +191,7 @@ status_t sem_wait  (sem_t *sem, unsigned int timeout)
     return status;
 }
 
-status_t sem_signal(sem_t *sem)
+status_t sem2_signal(sem2_t *sem)
 {
     status_t status = OSA_SOK;
 
@@ -207,7 +207,7 @@ status_t sem_signal(sem_t *sem)
     return status;
 }
 
-status_t sem_delete(sem_t *sem)
+status_t sem2_delete(sem2_t *sem)
 {
     status_t status = OSA_SOK;
 
