@@ -54,6 +54,12 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+enum __queue_state_t; typedef enum __queue_state_t queue_state_t;
+enum __queue_state_t
+{
+    OSA_QUEUE_STATE_INIT = 0,
+    OSA_QUEUE_STATE_EXIT = 1,
+};
 
 /*
  *  --------------------- Data type definition ---------------------------------
@@ -82,6 +88,8 @@ struct __queue_t
     pthread_mutex_t m_mutex;
 	pthread_cond_t	m_rd_cond;
 	pthread_cond_t	m_wr_cond;
+    volatile
+    unsigned int    m_state;
 };
 
 /*
@@ -122,6 +130,9 @@ status_t queue_get(queue_t *queue, unsigned int *value, unsigned int timeout);
 status_t queue_peek(queue_t *queue, unsigned int *value);
 status_t queue_count(queue_t *queue, unsigned int *count);
 Bool     queue_is_empty(queue_t *queue);
+status_t queue_exit(queue_t *queue);
+status_t queue_set_state(queue_t *queue, queue_state_t state);
+status_t queue_reset(queue_t *queue);
 status_t queue_delete(queue_t *queue);
 
 #if defined(__cplusplus)

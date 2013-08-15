@@ -45,6 +45,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define queue_is_exit(queue)    ((queue)->m_state == OSA_QUEUE_STATE_EXIT)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -164,6 +165,8 @@ status_t queue_create(queue_t *queue, unsigned int max_len)
     pthread_condattr_destroy(&cond_attr);
     pthread_mutexattr_destroy(&mutex_attr);
 
+    queue->m_state = OSA_QUEUE_STATE_INIT;
+
     return status;
 }
 
@@ -173,7 +176,7 @@ status_t queue_put(queue_t *queue, unsigned int value, unsigned int timeout)
 
     pthread_mutex_lock(&queue->m_mutex);
 
-    while (1) {
+    while (!queue_is_exit(queue)) {
         if (queue->m_count < queue->m_len) {
             queue->m_queue[queue->m_wr_idx] = value;
             queue->m_wr_idx = (queue->m_wr_idx + 1) % queue->m_len;
@@ -194,13 +197,14 @@ status_t queue_put(queue_t *queue, unsigned int value, unsigned int timeout)
 
     return status;
 }
+
 status_t queue_get(queue_t *queue, unsigned int *value, unsigned int timeout)
 {
     status_t status = OSA_EFAIL;
 
     pthread_mutex_lock(&queue->m_mutex);
 
-    while (1) {
+    while (!queue_is_exit(queue)) {
         if (queue->m_count > 0) {
 
             if (value != NULL) {
@@ -273,6 +277,44 @@ Bool     queue_is_empty(queue_t *queue)
     pthread_mutex_unlock(&queue->m_mutex);
 
     return is_empty;
+}
+
+status_t queue_exit(queue_t *queue)
+{
+    return queue_set_state(queue, OSA_QUEUE_STATE_EXIT);
+}
+
+status_t queue_set_state(queue_t *queue, queue_state_t state)
+{
+    status_t status = OSA_SOK;
+
+    pthread_mutex_lock(&queue->m_mutex);
+
+    queue->m_state = state;
+
+    if (queue_is_exit(queue)) {
+        pthread_cond_broadcast(&queue->m_wr_cond);
+        pthread_cond_broadcast(&queue->m_rd_cond);
+    }
+
+    pthread_mutex_unlock(&queue->m_mutex);
+
+    return status;
+}
+
+status_t queue_reset(queue_t *queue)
+{
+    status_t status = OSA_SOK;
+
+    pthread_mutex_lock(&queue->m_mutex);
+
+    queue->m_rd_idx = 0;
+    queue->m_wr_idx = 0;
+    queue->m_count  = 0;
+
+    pthread_mutex_unlock(&queue->m_mutex);
+
+    return status;
 }
 
 status_t queue_delete(queue_t *queue)
