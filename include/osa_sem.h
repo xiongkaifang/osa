@@ -74,6 +74,8 @@ struct __sem2_t
 	unsigned int	m_max_count;
 	pthread_mutex_t	m_mutex;
 	pthread_cond_t	m_cond;
+    volatile
+    unsigned int    m_state;
 };
 
 /*
@@ -111,6 +113,7 @@ struct __sem2_t
 status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value);
 status_t sem2_wait  (sem2_t *sem, unsigned int timeout);
 status_t sem2_signal(sem2_t *sem);
+status_t sem2_exit  (sem2_t *sem);
 status_t sem2_delete(sem2_t *sem);
 
 #if defined(__cplusplus)

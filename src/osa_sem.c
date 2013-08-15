@@ -45,6 +45,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define sem2_is_exit(sem)   ((sem)->m_state == OSA_SEM2_STATE_EXIT)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -60,6 +61,12 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
+enum __sem2_state_t; typedef enum __sem2_state_t sem2_state_t;
+enum __sem2_state_t
+{
+    OSA_SEM2_STATE_INIT = 0,
+    OSA_SEM2_STATE_EXIT = 1,
+};
 
 /*
  *  --------------------- Global variable definition ---------------------------
@@ -163,6 +170,8 @@ status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value)
     pthread_mutexattr_destroy(&mutex_attr);
     pthread_condattr_destroy(&cond_attr);
 
+    sem->m_state = OSA_SEM2_STATE_INIT;
+
     return status;
 }
 
@@ -172,7 +181,7 @@ status_t sem2_wait  (sem2_t *sem, unsigned int timeout)
 
     pthread_mutex_lock(&sem->m_mutex);
 
-    while (1) {
+    while (!sem2_is_exit(sem)) {
         if (sem->m_count > 0) {
             sem->m_count--;
             status = OSA_SOK;
@@ -201,6 +210,21 @@ status_t sem2_signal(sem2_t *sem)
         sem->m_count++;
         status |= pthread_cond_signal(&sem->m_cond);
     }
+
+    pthread_mutex_unlock(&sem->m_mutex);
+
+    return status;
+}
+
+status_t sem2_exit  (sem2_t *sem)
+{
+    status_t status = OSA_SOK;
+
+    pthread_mutex_lock(&sem->m_mutex);
+
+    sem->m_state = OSA_SEM2_STATE_EXIT;
+
+    pthread_cond_broadcast(&sem->m_cond);
 
     pthread_mutex_unlock(&sem->m_mutex);
 
