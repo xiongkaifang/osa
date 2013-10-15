@@ -30,6 +30,7 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
+#include "osa_timer.h"
 #include "tsk_mgr_main.h"
 #include "tsk_drv_test1.h"
 #include "tsk_drv_test2.h"
@@ -178,6 +179,10 @@ static void tsk_mgr_daemon_signal_handler(int sig)
     }
 }
 
+static status_t __task_event1_handler(void *);
+
+static status_t __task_event2_handler(void *);
+
 /*
  *  --------------------- Public function definition ---------------------------
  */
@@ -255,6 +260,11 @@ status_t system_init(task_mgr_handle hdl)
     hdl->m_params.m_tsk_mgr_prm.m_tsk_cnt = 10;
     status |= task_mgr_init(&hdl->m_params.m_tsk_mgr_prm);
 
+    /*
+     *  Initialize osa timer.
+     */
+    status |= osa_timer_init();
+
     OSA_assert(OSA_SOK == status);
 
     return status;
@@ -263,6 +273,11 @@ status_t system_init(task_mgr_handle hdl)
 status_t system_deinit(task_mgr_handle hdl)
 {
     status_t status = OSA_SOK;
+
+    /*
+     *  Finalize osa timer.
+     */
+    status |= osa_timer_deinit();
 
     /*
      *  Finialize tasklist.
@@ -322,7 +337,23 @@ status_t task_daemon_init(task_mgr_handle hdl)
     hdl->m_tsklists[TASK_MGR_TSK4] = &glb_tsk_obj4;
     hdl->m_tsklists[TASK_MGR_TSK5] = &glb_tsk_obj5;
 
+    hdl->m_event1.m_fxn = __task_event1_handler;
+    hdl->m_event1.m_ud = (void *)hdl;
+    hdl->m_event1.m_delete = FALSE;
+
+    hdl->m_event2.m_fxn = __task_event2_handler;
+    hdl->m_event2.m_ud = (void *)hdl;
+    hdl->m_event2.m_delete = FALSE;
+
     status = task_daemon_task_create(hdl);
+
+    /*
+     *  Register osa timer events.
+     */
+    status |= osa_timer_register(&hdl->m_event1_id, 1000, &hdl->m_event1);
+    fprintf(stderr, "Event1 id :%d.\n", hdl->m_event1_id);
+    status |= osa_timer_register(&hdl->m_event2_id, 5000, &hdl->m_event2);
+    fprintf(stderr, "Event2 id :%d.\n", hdl->m_event2_id);
 
     return status;
 }
@@ -425,6 +456,12 @@ status_t task_daemon_run(task_mgr_handle hdl)
 status_t task_daemon_stop(task_mgr_handle hdl)
 {
     status_t status = OSA_SOK;
+
+    /*
+     *  Unregister osa timer events.
+     */
+    status |= osa_timer_unregister(hdl->m_event1_id);
+    status |= osa_timer_unregister(hdl->m_event2_id);
 
     status = task_mgr_broadcast(TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
 
@@ -555,6 +592,17 @@ task_mgr_daemon_dynamic(task_mgr_handle hdl)
             break;
     }
 }
+
+static status_t __task_event1_handler(void *ud)
+{
+    fprintf(stderr, "Event 1 is handled.\n");
+}
+
+static status_t __task_event2_handler(void *ud)
+{
+    fprintf(stderr, "Event 2 is handled.\n");
+}
+
 
 #if defined(__cplusplus)
 }

@@ -36,6 +36,7 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa_task.h"
+#include "osa_timer.h"
 #include "osa_task_mgr.h"
 #include "osa_mutex.h"
 #include "tsk_common.h"
@@ -91,6 +92,11 @@ struct __task_mgr_object_t
     task_mgr_params_t       m_params;
     unsigned int            m_tsk_cnt;
     unsigned int            m_cur_cnt;
+
+    int                     m_event1_id;
+    osa_event_t             m_event1;
+    int                     m_event2_id;
+    osa_event_t             m_event2;
 
     task_t                  m_cur_tsk;
 
