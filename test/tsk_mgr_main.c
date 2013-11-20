@@ -352,7 +352,7 @@ status_t task_daemon_init(task_mgr_handle hdl)
      */
     status |= osa_timer_register(&hdl->m_event1_id, 1000, &hdl->m_event1);
     fprintf(stderr, "Event1 id :%d.\n", hdl->m_event1_id);
-    status |= osa_timer_register(&hdl->m_event2_id, 5000, &hdl->m_event2);
+    status |= osa_timer_register(&hdl->m_event2_id, 1000, &hdl->m_event2);
     fprintf(stderr, "Event2 id :%d.\n", hdl->m_event2_id);
 
     return status;
