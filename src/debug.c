@@ -51,7 +51,7 @@ void debugger_destroy(void)
         localtime_r(&tmt, &tm);
 
         if(gbl_debug_logger2) {
-            fprintf(gbl_debug_logger2, "\n\nSystem logger stopped at %s %02d, %02d:%02d:%02d,\n",
+            fprintf(gbl_debug_logger2, "\n\nSystem logger stopped at %s %02d, %02d:%02d:%02d.\n",
                     gbl_months[tm.tm_mon], tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
             fclose(gbl_debug_logger2);
         }
@@ -68,11 +68,11 @@ void debugger_update(struct tm* tm)
 	if(old_tm.tm_year != tm->tm_year || old_tm.tm_mon != tm->tm_mon || old_tm.tm_mday != tm->tm_mday) {
 		char filename[128];
 		old_tm = *tm;
-		sprintf(filename, "%s/rtspserver_%04d%02d%02d.log", dbg_logger_folder,
+		sprintf(filename, "%s/vcs_main_%04d%02d%02d.log", dbg_logger_folder,
 				tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday);
 
 		if(gbl_debug_logger2) {
-			fprintf(gbl_debug_logger2, "\n\nSystem logger stopped at %s %02d, %02d:%02d:%02d,\n",
+			fprintf(gbl_debug_logger2, "\n\nSystem logger stopped at %s %02d, %02d:%02d:%02d.\n",
 				gbl_months[tm->tm_mon], tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 			fclose(gbl_debug_logger2);
 		}
@@ -80,7 +80,7 @@ void debugger_update(struct tm* tm)
 		gbl_debug_logger2 = fopen(filename, "a");
 
 		if(gbl_debug_logger2) {
-			fprintf(gbl_debug_logger2, "\n\nSystem logger started at %s %02d, %02d:%02d:%02d,\n",
+			fprintf(gbl_debug_logger2, "\n\nSystem logger started at %s %02d, %02d:%02d:%02d.\n",
 					gbl_months[tm->tm_mon], tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 		}
 	}
