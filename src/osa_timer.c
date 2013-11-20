@@ -711,7 +711,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
     /* Update synchronized system time for osa timer */
     ptimer->m_sync_time = now_time;
 
-    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * 1000 + ptimer->m_temp_time.tv_usec;
+    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * 1000 + ptimer->m_temp_time.tv_usec / 1000;
 
     ptimer->m_resync_done = FALSE;
     status = dlist_map(&ptimer->m_busy_list, __osa_timer_event_resync_apply_fxn, (void *)ptimer);
