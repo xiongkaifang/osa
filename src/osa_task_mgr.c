@@ -178,6 +178,12 @@ static status_t
 __task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk);
 
 static status_t
+__task_mgr_start_tsk(task_mgr_handle hdl, task_object_t *tsk);
+
+static status_t
+__task_mgr_stop_tsk(task_mgr_handle hdl, task_object_t *tsk);
+
+static status_t
 __task_mgr_unregister_tsk(task_mgr_handle hdl, task_object_t *tsk);
 
 static status_t
@@ -270,14 +276,44 @@ status_t task_mgr_register(task_object_t *tsk)
 
 status_t task_mgr_start(task_object_t *tsk)
 {
+#if 0
     return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
             glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_START_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+#else
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Nov 20, 2013.
+     *
+     *  Description:
+     *
+     *      At present, we don't use task manager to start or stop other task,
+     *      because task manager will be blocked if we do that recursion.
+     *
+     */
+    return __task_mgr_start_tsk(&glb_tsk_mgr_obj, tsk);
+#endif
 }
 
 status_t task_mgr_stop(task_object_t *tsk)
 {
+#if 0
     return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
             glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_STOP_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+#else
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Nov 20, 2013.
+     *
+     *  Description:
+     *
+     *      At present, we don't use task manager to start or stop other task,
+     *      because task manager will be blocked if we do that recursion.
+     *
+     */
+    return __task_mgr_stop_tsk(&glb_tsk_mgr_obj, tsk);
+#endif
 }
 
 status_t task_mgr_unregister(task_object_t *tsk)
