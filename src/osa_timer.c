@@ -1,12 +1,30 @@
 /** ============================================================================
  *
- *  osa_timer.c
+ *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co.,, Ltd.
  *
- *  Author     : xkf
+ *  @File name:	osa_timer.c
  *
- *  Date       : Sep 03, 2013
+ *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-09-03
  *
- *  Description: 
+ *  @Description:   The description of this file.
+ *	
+ *	                The template format for source file.
+ *
+ *  @Version:	    v1.0
+ *
+ *  @Function List:  //	主要函数及功能
+ *	    1.  －－－－－
+ *	    2.  －－－－－
+ *
+ *  @History:	     //	历史修改记录
+ *
+ *	<author>	    <time>	     <version>	    <desc>
+ *  xiong-kaifang   2013-09-03     v1.0	        write this module.
+ *
+ *  xiong-kaifang   2013-12-12     v1.1         Use microsecond to caculate
+ *                                              elapesed time.
+ *                                              Fixed bug in osa timer exit.
+ *
  *  ============================================================================
  */
 
@@ -538,6 +556,39 @@ __osa_timer_event_print_apply_fxn(dlist_element_t * elem, void * data)
     return 0;
 }
 
+static status_t
+__osa_timer_event_handler(void *ud)
+{
+    /* Dummy event */
+    return 0;
+}
+
+static status_t
+__osa_timer_synchronize(void *ud, task_t tsk, msg_t *msg)
+{
+    status_t status = OSA_SOK;
+    osa_timer_object_t *ptimer = NULL;
+
+    ptimer = (osa_timer_object_t *)ud;
+
+    if (ptimer == NULL) {
+        return OSA_EARGS;
+    }
+
+    switch (msg_get_cmd(msg))
+    {
+        case TASK_CMD_EXIT:
+            status |= __osa_timer_do_deinitialize(ptimer);
+            status |= task_set_state(tsk, TASK_CMD_EXIT);
+            break;
+
+        default:
+            break;
+    }
+
+    return status;
+}
+
 static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, msg_t **msg)
 {
     int i;
@@ -597,7 +648,7 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
         /* Update synchronized system time for osa timer */
         ptimer->m_sync_time = now_time;
 
-        ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * 1000 + ptimer->m_temp_time.tv_usec;
+        ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLONS + ptimer->m_temp_time.tv_usec;
 
         pthread_mutex_lock(&ptimer->m_mutex);
 
@@ -624,41 +675,11 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
         }
 
         pthread_mutex_unlock(&ptimer->m_mutex);
+
+        status |= task_synchronize(ptimer, glb_osa_timer_tsk_obj.m_task, __osa_timer_synchronize, 0);
     }
 
     return status;
-}
-
-static status_t 
-__osa_timer_synchronize(void *ud, task_t tsk, msg_t *msg)
-{
-    status_t status = OSA_SOK;
-    osa_timer_object_t *ptimer = NULL;
-
-    ptimer = (osa_timer_object_t *)ud;
-
-    if (ptimer == NULL) {
-        return OSA_EARGS;
-    }
-
-    switch (msg_get_cmd(msg))
-    {
-        case TASK_CMD_EXIT:
-            status |= __osa_timer_do_deinitialize(ptimer);
-            status |= task_set_state(tsk, TASK_CMD_EXIT);
-            break;
-
-        default:
-            break;
-    }
-
-    return status;
-}
-
-static status_t
-__osa_timer_event_handler(void *ud)
-{
-    return task_synchronize(ud, glb_osa_timer_tsk_obj.m_task, __osa_timer_synchronize, 0);
 }
 
 static bool
@@ -711,7 +732,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
     /* Update synchronized system time for osa timer */
     ptimer->m_sync_time = now_time;
 
-    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * 1000 + ptimer->m_temp_time.tv_usec / 1000;
+    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLONS + ptimer->m_temp_time.tv_usec;
 
     ptimer->m_resync_done = FALSE;
     status = dlist_map(&ptimer->m_busy_list, __osa_timer_event_resync_apply_fxn, (void *)ptimer);
@@ -782,9 +803,9 @@ __osa_timer_nanosleep(unsigned int micro_secs)
     struct timespec delay_time, remain_time;
     int ret;
 
-    delay_time.tv_sec  = micro_secs / 1000000;
+    delay_time.tv_sec  = micro_secs / MILLONS;
 
-    delay_time.tv_nsec = (micro_secs % 1000000) * 1000;
+    delay_time.tv_nsec = (micro_secs % MILLONS) * 1000;
 
     do {
         ret = nanosleep(&delay_time, &remain_time);
