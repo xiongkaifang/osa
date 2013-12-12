@@ -21,6 +21,7 @@
  *	<author>	    <time>	     <version>	    <desc>
  *  xiong-kaifang   2013-04-05     v1.0	        write this module.
  *
+ *  xiong-kaifang   2013-12-11     v1.1         Add msgs pool.
  *
  *  ============================================================================
  */
@@ -50,6 +51,8 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define TASKLIST_MSG_NUM_MAX                (100)
+
 #define TASKLIST_CRITICAL_ENTER()           \
     do {                                    \
         mutex_lock(&glb_tsklist_mutex);     \
@@ -123,8 +126,12 @@ struct __tasklist_t {
 	mutex_t			m_mutex;
 	threadpool_t	m_thdpool;
 	task_node_t   * m_tsklist;
+
+    msg_t         * m_msgs;
+
     dlist_t         m_busy_list;
     dlist_t         m_free_list;
+    dlist_t         m_msgs_list;
 };
 
 typedef struct __task_t * task_handle;
@@ -500,12 +507,66 @@ status_t task_synchronize(void *ud, task_t tsk, TASK_SYNC_FXN fxn, unsigned int 
 
 status_t task_alloc_msg(unsigned short size, msg_t **msg)
 {
+#if 0
     return mailbox_alloc_msg(size, msg);
+#else
+
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Dec 11, 2013.
+     *
+     *  Description:
+     *
+     *      Allocate memory for msg from pool.
+     */
+    status_t status = OSA_ENOENT;
+    tasklist_t *tsklist = &glb_tsklist_obj;
+
+    mutex_lock(&tsklist->m_mutex);
+
+    if (!dlist_is_empty(&tsklist->m_msgs_list)) {
+        status = dlist_get_head(&tsklist->m_msgs_list, (dlist_element_t **)msg);
+
+        OSA_assert(OSA_SOK == status);
+    }
+
+    mutex_unlock(&tsklist->m_mutex);
+
+    return status;
+
+#endif
 }
 
 status_t task_free_msg(unsigned short size, msg_t *msg)
 {
+#if 0
     return mailbox_free_msg(size, msg);
+#else
+
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Dec 11, 2013.
+     *
+     *  Description:
+     *
+     *      De-allocate memory for msg to pool.
+     */
+    status_t status = OSA_SOK;
+    tasklist_t *tsklist = &glb_tsklist_obj;
+
+    //OSA_assert(TRUE == OSA_ARRAYISVALIDENTRY(msg, tsklist->m_msgs));
+
+    mutex_lock(&tsklist->m_mutex);
+
+    status = dlist_put_tail(&tsklist->m_msgs_list, (dlist_element_t *)msg);
+
+    mutex_unlock(&tsklist->m_mutex);
+
+    return status;
+
+#endif
 }
 
 status_t task_recv_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
@@ -585,7 +646,8 @@ status_t task_ack_free_msg(task_t tsk, msg_t *msg)
             OSA_memFree(msg_get_payload_size(msg), msg_get_payload_ptr(msg));
         }
 
-        status |= mailbox_free_msg(msg_get_msg_size(msg), msg);
+        //status |= mailbox_free_msg(msg_get_msg_size(msg), msg);
+        status |= task_free_msg(msg_get_msg_size(msg), msg);
     }
 
     return status;
@@ -694,6 +756,7 @@ __tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
 {
 	int i = 0;
 	status_t status = OSA_SOK;
+    unsigned int mem_size = 0;
     task_node_t *tsk_node = NULL;
 	threadpool_params_t thdpool_params;
 	
@@ -701,14 +764,16 @@ __tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
 	
 	tsklist->m_tsk_cnt = prm->m_tsk_cnt;
 	tsklist->m_cur_cnt = 0;
-	status = OSA_memAlloc(sizeof(task_node_t) * tsklist->m_tsk_cnt, (void **)&tsklist->m_tsklist);
+
+    mem_size = sizeof(task_node_t) * tsklist->m_tsk_cnt + sizeof(msg_t) * TASKLIST_MSG_NUM_MAX;
+	status = OSA_memAlloc(mem_size, (void **)&tsklist->m_tsklist);
 	if (OSA_ISERROR(status) || tsklist->m_tsklist == NULL) {
 		return OSA_EMEM;
 	}
 	
 	status = mutex_create(&tsklist->m_mutex);
 	if (OSA_ISERROR(status)) {
-		OSA_memFree(sizeof(task_node_t) * tsklist->m_tsk_cnt, (void *)tsklist->m_tsklist);
+		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
 		tsklist->m_tsklist = NULL;
 		return status;
 	}
@@ -719,7 +784,7 @@ __tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
 	status = threadpool_create(&tsklist->m_thdpool, &thdpool_params);
 	if (OSA_ISERROR(status)) {
 		mutex_delete(&tsklist->m_mutex);
-		OSA_memFree(sizeof(task_node_t) * tsklist->m_tsk_cnt, (void *)tsklist->m_tsklist);
+		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
 		tsklist->m_tsklist = NULL;
         return status;
 	}
@@ -741,7 +806,16 @@ __tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
         status |= dlist_initialize_element((dlist_element_t *)tsk_node);
         status |= dlist_put_tail(&tsklist->m_free_list, (dlist_element_t *)tsk_node);
 	}
-	
+
+    /* Initialize msg pool */
+    status |= dlist_init(&tsklist->m_msgs_list);
+    tsklist->m_msgs = (msg_t *)(tsklist->m_tsklist + tsklist->m_tsk_cnt);
+
+	for (i = 0; i < TASKLIST_MSG_NUM_MAX; i++) {
+        status |= dlist_initialize_element((dlist_element_t *)&tsklist->m_msgs[i]);
+        status |= dlist_put_tail(&tsklist->m_msgs_list, (dlist_element_t *)&tsklist->m_msgs[i]);
+	}
+
 	return status;
 }
 
@@ -783,6 +857,7 @@ static status_t
 __tasklist_deinitialize(tasklist_t *tsklist)
 {
 	int i = 0;
+    unsigned int mem_size = 0;
     task_node_t *tsk_node = NULL;
 	status_t status = OSA_SOK;
 	
@@ -796,8 +871,10 @@ __tasklist_deinitialize(tasklist_t *tsklist)
 	status |= threadpool_delete(&tsklist->m_thdpool);
 	status |= mutex_delete(&tsklist->m_mutex);
 	
+    mem_size = sizeof(task_node_t) * tsklist->m_tsk_cnt + sizeof(msg_t) * TASKLIST_MSG_NUM_MAX;
+
 	if (tsklist->m_tsklist != NULL) {
-		OSA_memFree(sizeof(task_node_t) * tsklist->m_tsk_cnt, (void *)tsklist->m_tsklist);
+		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
 		tsklist->m_tsklist = NULL;
 	}
 	

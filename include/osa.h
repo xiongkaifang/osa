@@ -21,10 +21,13 @@
  *
  *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
  *	        	    //	时间及修改内容简述
- *	    1.  Date:
- *	        Author:
- *	        Modification:
- *	    2.  ...
+ *	    1.  Date       :
+ *	        Author     :
+ *	        Decsription:
+ *
+ *	    2.  Date       : Dec 11, 2013.
+ *	        Author     : xiong-kaifang.
+ *	        Decsription: Add two macro OSA_ARRAYINDEX and OSA_ARRAYISVALIDENTRY.
  *
  *  ============================================================================
  */
@@ -65,7 +68,14 @@ extern "C" {
 #endif
 #define FALSE   (0)
 
-#define OSA_ARRAYSIZE(array)    ((sizeof(array) / sizeof((array)[0])))
+#define OSA_ARRAYSIZE(array)        ((sizeof(array) / sizeof((array)[0])))
+
+#define OSA_ARRAYINDEX(elem,array)  ((elem) - &((array)[0]))
+
+#define OSA_ARRAYISVALIDENTRY(elem,array)   ((OSA_ARRAYINDEX(elem,array) <  \
+                                             OSA_ARRAYSIZE(array))          \
+                                             ? TRUE                         \
+                                             : FALSE)
 
 #define OSA_TIMEOUT_NONE        (0)
 #define OSA_TIMEOUT_FOREVER     (~(0u))

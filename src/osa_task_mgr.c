@@ -458,7 +458,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
     status = dlist_init(&tskmgr->m_free_list);
 
     /* Allocate msgs */
-    status = task_alloc_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t **)&tskmgr->m_msgs);
+    status = OSA_memAlloc(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t **)&tskmgr->m_msgs);
     if (OSA_ISERROR(status)) {
         mutex_delete(&tskmgr->m_mutex);
         __task_mgr_env_deinitialize();
@@ -493,7 +493,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
                         );
 #endif
     if (OSA_ISERROR(status)) {
-        task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
+        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
         __task_mgr_env_deinitialize();
@@ -509,7 +509,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
 
         __task_mgr_unregister_tsk(tskmgr, &tskmgr->m_mgr_tsk);
 
-        task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
+        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
         __task_mgr_env_deinitialize();
@@ -525,7 +525,7 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
 
         __task_mgr_unregister_tsk(tskmgr, &tskmgr->m_mgr_tsk);
 
-        task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
+        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
         tskmgr->m_msgs = NULL;
         mutex_delete(&tskmgr->m_mutex);
         __task_mgr_env_deinitialize();
@@ -626,7 +626,7 @@ __task_mgr_deinitialize(task_mgr_t *tskmgr)
     status |= dlist_remove_element(&tskmgr->m_tsklists, (dlist_element_t *)&tskmgr->m_mgr_tsk);
 #endif
 
-    status |= task_free_msg(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
+    status |= OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
 
     tskmgr->m_msgs = NULL;
 
