@@ -271,7 +271,7 @@ status_t threadpool_add_task(threadpool_t thdp,
     status = dlist_put_tail(&hdl->m_task_list, (dlist_element_t *)tsk_p);
 
     if (hdl->m_idl_thd_nums > 0) {
-        DBG(DBG_INFO, "threadpool_add_task: Using idle thread to process this task.\n", tsk_p);
+        DBG(DBG_DETAILED, "threadpool_add_task: Using idle thread to process this task.\n", tsk_p);
         pthread_cond_signal(&hdl->m_work_cond);
     } else if (hdl->m_cur_thd_nums < hdl->m_max_thd_nums) {
         thd_attrs = default_thd_attrs;
@@ -533,7 +533,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
     pthread_cond_broadcast(&hdl->m_work_cond);
 
     /* Cancel all active work thread */
-    DBG(DBG_INFO, "__threadpool_exit: Cancel all working thread.\n");
+    DBG(DBG_DETAILED, "__threadpool_exit: Cancel all working thread.\n");
     status = dlist_first(&hdl->m_busy_list, (dlist_element_t **)&cur_thd_hdl);
     while ((cur_thd_hdl != NULL) && SUCCEEDED(status)) {
         status = thread_cancel(cur_thd_hdl);
@@ -553,13 +553,13 @@ static int  __threadpool_exit(threadpool_handle hdl)
     /* Wait all active task workers to finish */
     while (!dlist_is_empty(&hdl->m_busy_list)) {
         hdl->m_state |= THREADPOOL_STATE_WAIT;
-        DBG(DBG_INFO, "__threadpool_exit: Wait for all thread to finish.\n");
+        DBG(DBG_DETAILED, "__threadpool_exit: Wait for all thread to finish.\n");
         pthread_cond_wait(&hdl->m_wait_cond, &hdl->m_mutex);
     }
 
     /* Wait all task workers to terminate */
     while (hdl->m_cur_thd_nums != 0) {
-        DBG(DBG_INFO, "__threadpool_exit: Wait for all thread to terminate.\n");
+        DBG(DBG_DETAILED, "__threadpool_exit: Wait for all thread to terminate.\n");
         pthread_cond_wait(&hdl->m_exit_cond, &hdl->m_mutex);
     }
 
@@ -567,7 +567,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
     pthread_mutex_unlock(&hdl->m_mutex);
 
     /* Delete all task workers */
-    DBG(DBG_INFO, "__threadpool_exit: Delete all thread.\n");
+    DBG(DBG_DETAILED, "__threadpool_exit: Delete all thread.\n");
     status = 0;
     while (!dlist_is_empty(&hdl->m_free_list) && SUCCEEDED(status)) {
         status = 
@@ -681,7 +681,7 @@ __threadpool_task_dispatch(threadpool_handle hdl,
 
     while (dlist_is_empty(&hdl->m_task_list)
             && !(hdl->m_state & THREADPOOL_STATE_DESTROY)) {
-        DBG(DBG_INFO, "__threadpool_task_dispatch: thread[0x%x] wait for "
+        DBG(DBG_DETAILED, "__threadpool_task_dispatch: thread[0x%x] wait for "
                 "task.\n", thd_hdl);
 
         pthread_cond_wait(&hdl->m_work_cond, &hdl->m_mutex);
