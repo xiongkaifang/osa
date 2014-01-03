@@ -61,6 +61,7 @@ extern "C" {
 /*
  *  --------------------- Data type definition ---------------------------------
  */
+typedef status_t (*TASK_CMD_FIND)(void *ud, unsigned short cmd, void **ptsk);
 
 /** ----------------------------------------------------------------------------
  *  @Name:          Structure name
@@ -87,6 +88,7 @@ struct __task_object_t
 
     unsigned char * m_name;
     TASK_MAIN       m_main;
+    TASK_CMD_FIND   m_find;
     unsigned int    m_pri;
     unsigned int    m_stack_size;
     unsigned int    m_init_state;
@@ -150,6 +152,8 @@ status_t task_mgr_stop(task_object_t *tsk);
 status_t task_mgr_broadcast(unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
 
 status_t task_mgr_synchronize(task_object_t *tsk, unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
+
+status_t task_mgr_synchronize2(unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
 
 status_t task_mgr_unregister(task_object_t *tsk);
 

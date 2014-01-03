@@ -333,6 +333,49 @@ status_t task_mgr_synchronize(task_object_t *tsk, unsigned short cmd, void *prm,
             glb_tsk_mgr_obj.m_mgr_tsk.m_task, cmd, prm, size, flags);
 }
 
+static bool
+__task_mgr_find_match_fxn2(dlist_element_t *elem, void *data)
+{
+    bool is_found = false;
+    status_t status = OSA_ENOENT;
+    task_object_t *ptsk = (task_object_t *)elem;
+
+    if (ptsk->m_find != NULL) {
+        status = (*ptsk->m_find)(ptsk->m_userdata, *(unsigned short *)data, NULL);
+    }
+
+    if (!OSA_ISERROR(status)) {
+        is_found = true;
+    }
+
+    return is_found;
+}
+
+status_t task_mgr_synchronize2(unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
+{
+    status_t status = OSA_SOK;
+    task_mgr_t *tskmgr = &glb_tsk_mgr_obj;
+    task_object_t *ptsk = NULL;
+
+    mutex_lock(&tskmgr->m_mutex);
+
+    status = dlist_search_element(&tskmgr->m_tsklists, (void *)&cmd,
+                                 (dlist_element_t **)&ptsk, __task_mgr_find_match_fxn2);
+    if (!OSA_ISERROR(status)) {
+        status = OSA_SOK;
+    } else {
+        status = OSA_ENOENT;
+    }
+
+    mutex_unlock(&tskmgr->m_mutex);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
+
+    return task_mgr_synchronize(ptsk, cmd, prm, size, flags);
+}
+
 status_t task_mgr_find(const char *name, task_object_t **ptsk)
 {
     status_t status = OSA_SOK;
