@@ -33,6 +33,7 @@
 #define __OSA_DEBUGGER_H
 
 /*  --------------------- Include system headers ---------------------------- */
+#include <stdio.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa_status.h"
@@ -59,6 +60,10 @@ extern "C" {
 #define DBG_SILENT		1000
 
 #define DBG(level, tag, arg...) osa_debugger((level), (tag), ##arg);
+
+// For back compatience
+#define SUCCEEDED(r)	((r) >= 0)
+#define FAILED(r)		((r) < 0)
 
 /*
  *  --------------------- Data type definition ---------------------------------
