@@ -197,14 +197,15 @@ void     osa_debugger(int level, const char *tags, const char *fmt, ...)
     osa_debugger_object_t *pobj = &glb_debug_obj;
 
     if (level >= pobj->m_debug_level && pobj->m_out != NULL) {
+
+        mutex_lock(&pobj->m_mutex);
+
         struct tm tim;
         struct timeval tv;
         va_list ap;
 
         gettimeofday(&tv, NULL);
         localtime_r(&tv.tv_sec, &tim);
-
-        mutex_lock(&pobj->m_mutex);
 
         fprintf(pobj->m_out, "%d-%02d-%02dT%02d:%02d:%02d.%03d| %s| ",
                 tim.tm_year + 1900, tim.tm_mon + 1, tim.tm_mday, tim.tm_hour, tim.tm_min, tim.tm_sec,
