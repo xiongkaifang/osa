@@ -13,14 +13,11 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "dlist.h"
-#include "debug.h"
-//#include "message.h"
-
+#include "osa_debugger.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
 
 /*
  *  --------------------- Macro definition -------------------------------------
@@ -32,6 +29,16 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+//#define             DLIST_DEBUG
+
+#if !defined(DLIST_DEBUG)
+
+#ifdef DBG
+#undef DBG
+#define DBG(level, tag, arg...)
+#endif
+
+#endif  // if defined DLIST_DEBUG   /* comment dlist debug message!!! */
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -59,6 +66,7 @@ extern "C" {
  *  @Description:   Description of the variable.
  * -----------------------------------------------------------------------------
  */
+static const char * const GT_NAME = "dlist";
 
 /*
  *  --------------------- Local function forward declaration -------------------
@@ -132,7 +140,7 @@ int  dlist_init(dlist_t * list)
     int       status = 0;
     dlist_t * mylist = NULL;
 
-    DBG(DBG_DETAILED, "dlist_init: Enter (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_init: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
         return -EINVAL;
@@ -141,7 +149,7 @@ int  dlist_init(dlist_t * list)
         list->head.prev = &(list->head);
     }
 
-    DBG(DBG_DETAILED, "dlist_init: Exit (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_init: Exit (list=0x%x)\n", list);
 
     return status;
 }
@@ -151,7 +159,7 @@ int  dlist_create(dlist_t ** list)
     int       status = 0;
     dlist_t * mylist = NULL;
 
-    DBG(DBG_DETAILED, "dlist_create: Enter (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_create: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
         return -EINVAL;
@@ -167,7 +175,7 @@ int  dlist_create(dlist_t ** list)
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_create: Exit (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_create: Exit (list=0x%x)\n", list);
 
     return status;
 }
@@ -176,7 +184,7 @@ int  dlist_delete(dlist_t * list)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_delete: Enter (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_delete: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
         status = -EINVAL;
@@ -184,7 +192,7 @@ int  dlist_delete(dlist_t * list)
         free(list);
     }
 
-    DBG(DBG_DETAILED, "dlist_delete: Exit (list=0x%x)\n", list);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_delete: Exit (list=0x%x)\n", list);
 
     return status;
 }
@@ -198,7 +206,7 @@ int  dlist_initialize_element(dlist_element_t * element)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_initialize_element: Enter (element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_initialize_element: Enter (element=0x%x)\n",
             element);
 
     if (element == NULL) {
@@ -207,7 +215,7 @@ int  dlist_initialize_element(dlist_element_t * element)
         element->next = element->prev = NULL;
     }
 
-    DBG(DBG_DETAILED, "dlist_initialize_element: Exit (element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_initialize_element: Exit (element=0x%x)\n",
             element);
 
     return status;
@@ -220,7 +228,7 @@ int  dlist_insert_before(dlist_t *          list,
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_insert_before: Enter (list=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_insert_before: Enter (list=0x%x, "
             "insert_element=0x%x, existing_element=0x%x)\n", 
             list, insert_element, existing_element);
 
@@ -233,7 +241,7 @@ int  dlist_insert_before(dlist_t *          list,
         existing_element->prev       = insert_element;
     }
 
-    DBG(DBG_DETAILED, "dlist_insert_before: Exit (list=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_insert_before: Exit (list=0x%x, "
             "insert_element=0x%x, existing_element=0x%x)\n", 
             list, insert_element, existing_element);
 
@@ -245,7 +253,7 @@ int  dlist_put_tail(dlist_t * list, dlist_element_t * element)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_put_tail: Enter (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_put_tail: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
@@ -257,7 +265,7 @@ int  dlist_put_tail(dlist_t * list, dlist_element_t * element)
         element->prev->next = element;
     }
 
-    DBG(DBG_DETAILED, "dlist_put_tail: Exit (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_put_tail: Exit (list=0x%x, element=0x%x)\n",
             list, element);
 
     return status;
@@ -268,7 +276,7 @@ int  dlist_remove_element(dlist_t * list, dlist_element_t * element)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_remove_element: Enter (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_remove_element: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
@@ -284,7 +292,7 @@ int  dlist_remove_element(dlist_t * list, dlist_element_t * element)
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_remove_element: Exit (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_remove_element: Exit (list=0x%x, element=0x%x)\n",
             list, element);
 
     return status;
@@ -294,7 +302,7 @@ int  dlist_first(dlist_t * list, dlist_element_t ** element)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_first: Enter (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_first: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
@@ -307,7 +315,7 @@ int  dlist_first(dlist_t * list, dlist_element_t ** element)
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_first: Exit (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_first: Exit (list=0x%x, element=0x%x)\n",
             list, element);
 
     return status;
@@ -317,7 +325,7 @@ int  dlist_get_head(dlist_t * list, dlist_element_t ** head_element)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_get_head: Enter (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_get_head: Enter (list=0x%x, element=0x%x)\n",
             list, head_element);
 
     if (list == NULL || head_element == NULL) {
@@ -332,7 +340,7 @@ int  dlist_get_head(dlist_t * list, dlist_element_t ** head_element)
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_get_head: Exit (list=0x%x, element=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "dlist_get_head: Exit (list=0x%x, element=0x%x)\n",
             list, head_element);
 
     return status;
@@ -345,7 +353,7 @@ int  dlist_next(dlist_t *          list,
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "dlist_next: Enter (list=0x%x, current_element=0x%x "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_next: Enter (list=0x%x, current_element=0x%x "
             "next_element=0x%x)\n", list, current_element, next_element);
 
     if (list == NULL || current_element == NULL || next_element == NULL) {
@@ -360,7 +368,7 @@ int  dlist_next(dlist_t *          list,
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_next: Exit (list=0x%x, current_element=0x%x "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_next: Exit (list=0x%x, current_element=0x%x "
             "next_element=0x%x)\n", list, current_element, next_element);
 
     return status;
@@ -377,7 +385,7 @@ int  dlist_search_element(dlist_t *          list,
     dlist_element_t * temp   = NULL;
     dlist_element_t * temp1  = NULL;
 
-    DBG(DBG_DETAILED, "dlist_search_element: Enter (list=0x%x, data=0x%x "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_search_element: Enter (list=0x%x, data=0x%x "
             "elem=0x%x, match_fxn=0x%x)\n", list, data, elem, match_fxn);
 
     if (list == NULL || data == NULL || elem == NULL || match_fxn == NULL) {
@@ -412,7 +420,7 @@ int  dlist_search_element(dlist_t *          list,
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_search_element: Enter (list=0x%x, data=0x%x "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_search_element: Enter (list=0x%x, data=0x%x "
             "elem=0x%x, match_fxn=0x%x)\n", list, data, elem, match_fxn);
 
     return status;
@@ -425,7 +433,7 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
     dlist_element_t * temp   = NULL;
     dlist_element_t * temp1  = NULL;
 
-    DBG(DBG_DETAILED, "dlist_map: Enter (list=0x%x, apply_fxn=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "dlist_map: Enter (list=0x%x, apply_fxn=0x%x, "
             "data=0x%x)\n", list, apply_fxn, data);
 
     if (list == NULL || apply_fxn == NULL) {
@@ -440,7 +448,7 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
         }
     }
 
-    DBG(DBG_DETAILED, "dlist_map: Exit (list=0x%x, status=0x%x\n", list, status);
+    DBG(DBG_DETAILED, GT_NAME, "dlist_map: Exit (list=0x%x, status=0x%x\n", list, status);
 
     return status;
 }

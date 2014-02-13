@@ -20,7 +20,7 @@
 #include "osa_mem.h"
 #include "thread.h"
 #include "dlist.h"
-#include "debug.h"
+#include "osa_debugger.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -112,6 +112,7 @@ static threadpool_params_t default_thdp_params = {
 
 static unsigned int cur_cnt_index = 0;
 
+static const char * const GT_NAME = "thdpool";
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -209,7 +210,7 @@ status_t threadpool_create(threadpool_t *thdp, const threadpool_params_t *prm)
     status_t status = OSA_SOK;
     threadpool_handle thdp_hdl = NULL;
 
-    DBG(DBG_DETAILED, "threadpool_create: Enter(thdp=0x%x, prm=0x%x)\n", thdp, prm);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_create: Enter(thdp=0x%x, prm=0x%x)\n", thdp, prm);
 
     if (prm == NULL) {
         prm = &default_thdp_params;
@@ -227,7 +228,7 @@ status_t threadpool_create(threadpool_t *thdp, const threadpool_params_t *prm)
 
     (*thdp) = (threadpool_t)thdp_hdl;
 
-    DBG(DBG_DETAILED, "threadpool_create: Exit(status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_create: Exit(status=0x%x)\n", status);
 
     return status;
 }
@@ -244,11 +245,11 @@ status_t threadpool_add_task(threadpool_t thdp,
 
     hdl = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
 
-    DBG(DBG_DETAILED, "threadpool_add_task: Enter (hdl=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Enter (hdl=0x%x, "
         "task_ops=0x%x)\n", hdl, tsk_ops);
 
     if (hdl == NULL || tsk_ops == NULL || token == NULL) {
-        DBG(DBG_ERROR, "threadpool_add_task: Invalid arguments.\n");
+        DBG(DBG_ERROR, GT_NAME, "threadpool_add_task: Invalid arguments.\n");
         return OSA_EARGS;
     }
 
@@ -256,7 +257,7 @@ status_t threadpool_add_task(threadpool_t thdp,
 
     status = __threadpool_alloc_task_cell(hdl, &tsk_p);
     if (OSA_ISERROR(status)) {
-        DBG(DBG_ERROR, "threadpool_add_task: No unused task cell.\n");
+        DBG(DBG_ERROR, GT_NAME, "threadpool_add_task: No unused task cell.\n");
         return status;
     }
 
@@ -271,13 +272,13 @@ status_t threadpool_add_task(threadpool_t thdp,
     status = dlist_put_tail(&hdl->m_task_list, (dlist_element_t *)tsk_p);
 
     if (hdl->m_idl_thd_nums > 0) {
-        DBG(DBG_DETAILED, "threadpool_add_task: Using idle thread to process this task.\n", tsk_p);
+        DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Using idle thread to process this task.\n", tsk_p);
         pthread_cond_signal(&hdl->m_work_cond);
     } else if (hdl->m_cur_thd_nums < hdl->m_max_thd_nums) {
         thd_attrs = default_thd_attrs;
         thd_attrs.environ = (void *)hdl;
 
-        DBG(DBG_DETAILED, "threadpool_add_task: Create a new thread to process this task.\n");
+        DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Create a new thread to process this task.\n");
         thd_hdl = thread_create((Fxn)__threadpool_run_stub, &thd_attrs);
         if (thd_hdl != NULL) {
             status = dlist_initialize_element((dlist_element_t *)thd_hdl);
@@ -292,7 +293,7 @@ status_t threadpool_add_task(threadpool_t thdp,
 
     (*token) = tsk_p;
 
-    DBG(DBG_DETAILED, "threadpool_add_task: Exit (token=0x%x)\n", tsk_p);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Exit (token=0x%x)\n", tsk_p);
 
     return status;
 }
@@ -348,10 +349,10 @@ status_t threadpool_wait(threadpool_t thdp)
     status_t status = OSA_SOK;
     threadpool_handle hdl = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
 
-    DBG(DBG_DETAILED, "threadpool_wait: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_wait: Enter (hdl=0x%x)\n", hdl);
 
     if (hdl == NULL) {
-        DBG(DBG_ERROR, "threadpool_wait: Invalid arguments.\n");
+        DBG(DBG_ERROR, GT_NAME, "threadpool_wait: Invalid arguments.\n");
         return -EINVAL;
     }
 
@@ -367,7 +368,7 @@ status_t threadpool_wait(threadpool_t thdp)
     /* Release threadpool mutex */
     pthread_mutex_unlock(&hdl->m_mutex);
 
-    DBG(DBG_DETAILED, "threadpool_wait: Exit (status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_wait: Exit (status=0x%x)\n", status);
 
     return status;
 }
@@ -377,10 +378,10 @@ status_t threadpool_delete(threadpool_t *thdp)
     status_t status = OSA_SOK;
     threadpool_handle hdl = THREADPOOL_GET_THDPOOL_HANDLE(*thdp);
 
-    DBG(DBG_DETAILED, "threadpool_delete: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_delete: Enter (hdl=0x%x)\n", hdl);
 
     if (hdl == NULL) {
-        DBG(DBG_ERROR, "threadpool_delete: Invalid arguments.\n");
+        DBG(DBG_ERROR, GT_NAME, "threadpool_delete: Invalid arguments.\n");
         return OSA_EARGS;
     }
 
@@ -393,7 +394,7 @@ status_t threadpool_delete(threadpool_t *thdp)
 
     (*thdp) = (threadpool_t)NULL;
 
-    DBG(DBG_DETAILED, "threadpool_delete: Exit(status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_delete: Exit(status=0x%x)\n", status);
 
     return status;
 }
@@ -403,10 +404,10 @@ status_t threadpool_instruments(threadpool_t thdp)
     status_t status = OSA_SOK;
     threadpool_handle hdl = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
 
-    DBG(DBG_DETAILED, "threadpool_instruments: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_instruments: Enter (hdl=0x%x)\n", hdl);
 
     if (hdl == NULL) {
-        DBG(DBG_ERROR, "threadpool_instruments: Invalid arguments.\n");
+        DBG(DBG_ERROR, GT_NAME, "threadpool_instruments: Invalid arguments.\n");
         return -EINVAL;
     }
 
@@ -418,7 +419,7 @@ status_t threadpool_instruments(threadpool_t thdp)
     /* Release threadpool mutex */
     pthread_mutex_unlock(&hdl->m_mutex);
 
-    DBG(DBG_DETAILED, "threadpool_instruments: Exit (status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_instruments: Exit (status=0x%x)\n", status);
 
     return status;
 }
@@ -457,7 +458,7 @@ __threadpool_init(threadpool_handle hdl, const threadpool_params_t *params)
     int i;
     status_t status = OSA_SOK;
 
-    DBG(DBG_DETAILED, "__threadpool_init: Enter (hdl=0x%x, params=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_init: Enter (hdl=0x%x, params=0x%x)\n",
             hdl, params);
 
     /* Initialize dlist object */
@@ -503,7 +504,7 @@ __threadpool_init(threadpool_handle hdl, const threadpool_params_t *params)
         OSA_assert(OSA_SOK == status);
     }
 
-    DBG(DBG_DETAILED, "__threadpool_init: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_init: Exit\n");
 
     return status;
 
@@ -521,7 +522,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
     thread_handle cur_thd_hdl = NULL;
     thread_handle nex_thd_hdl = NULL;
 
-    DBG(DBG_DETAILED, "__threadpool_exit: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Enter (hdl=0x%x)\n", hdl);
 
     usleep(10000);
 
@@ -533,7 +534,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
     pthread_cond_broadcast(&hdl->m_work_cond);
 
     /* Cancel all active work thread */
-    DBG(DBG_DETAILED, "__threadpool_exit: Cancel all working thread.\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Cancel all working thread.\n");
     status = dlist_first(&hdl->m_busy_list, (dlist_element_t **)&cur_thd_hdl);
     while ((cur_thd_hdl != NULL) && SUCCEEDED(status)) {
         status = thread_cancel(cur_thd_hdl);
@@ -553,13 +554,13 @@ static int  __threadpool_exit(threadpool_handle hdl)
     /* Wait all active task workers to finish */
     while (!dlist_is_empty(&hdl->m_busy_list)) {
         hdl->m_state |= THREADPOOL_STATE_WAIT;
-        DBG(DBG_DETAILED, "__threadpool_exit: Wait for all thread to finish.\n");
+        DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Wait for all thread to finish.\n");
         pthread_cond_wait(&hdl->m_wait_cond, &hdl->m_mutex);
     }
 
     /* Wait all task workers to terminate */
     while (hdl->m_cur_thd_nums != 0) {
-        DBG(DBG_DETAILED, "__threadpool_exit: Wait for all thread to terminate.\n");
+        DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Wait for all thread to terminate.\n");
         pthread_cond_wait(&hdl->m_exit_cond, &hdl->m_mutex);
     }
 
@@ -567,7 +568,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
     pthread_mutex_unlock(&hdl->m_mutex);
 
     /* Delete all task workers */
-    DBG(DBG_DETAILED, "__threadpool_exit: Delete all thread.\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Delete all thread.\n");
     status = 0;
     while (!dlist_is_empty(&hdl->m_free_list) && SUCCEEDED(status)) {
         status = 
@@ -589,7 +590,7 @@ static int  __threadpool_exit(threadpool_handle hdl)
 
     pthread_mutex_destroy(&hdl->m_tsk_mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_exit: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Exit\n");
 
     return status;
 }
@@ -603,7 +604,7 @@ static void __threadpool_run_stub(void)
     threadpool_handle   thdp_hdl = NULL;
     thdpool_task_t    * tsk_p    = NULL;
 
-    DBG(DBG_DETAILED, "__threadpool_run_stub: Enter\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_run_stub: Enter\n");
 
     thd_hdl  = thread_self();
     thdp_hdl = thread_get_env(thd_hdl);
@@ -660,7 +661,7 @@ static void __threadpool_run_stub(void)
     /* Clean up worker: Call ====> __threadpool_cleanup_worker(thdp_hdl) */
     pthread_cleanup_pop(1);
 
-    DBG(DBG_DETAILED, "__threadpool_run_stub: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_run_stub: Exit\n");
 }
 
 static int
@@ -670,7 +671,7 @@ __threadpool_task_dispatch(threadpool_handle hdl,
     int             status  = 0;
     thread_handle   thd_hdl = NULL;
 
-    DBG(DBG_DETAILED, "__threadpool_task_dispatch: Enter (hdl=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_task_dispatch: Enter (hdl=0x%x, "
         "tsk=0x%x, timeout=0x%x)\n", hdl, tsk, timeout);
 
     thd_hdl = thread_self();
@@ -681,7 +682,7 @@ __threadpool_task_dispatch(threadpool_handle hdl,
 
     while (dlist_is_empty(&hdl->m_task_list)
             && !(hdl->m_state & THREADPOOL_STATE_DESTROY)) {
-        DBG(DBG_DETAILED, "__threadpool_task_dispatch: thread[0x%x] wait for "
+        DBG(DBG_DETAILED, GT_NAME, "__threadpool_task_dispatch: thread[0x%x] wait for "
                 "task.\n", thd_hdl);
 
         pthread_cond_wait(&hdl->m_work_cond, &hdl->m_mutex);
@@ -703,7 +704,7 @@ __threadpool_task_dispatch(threadpool_handle hdl,
 
     //pthread_mutex_unlock(&hdl->mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_task_dispatch: Exit (status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_task_dispatch: Exit (status=0x%x)\n", status);
 
     return status;
 }
@@ -715,15 +716,13 @@ static void __threadpool_cleanup_task(thdpool_task_t * tsk)
     thread_handle       thd_hdl  = NULL;
     threadpool_handle   thdp_hdl = NULL;
 
-    DBG(DBG_DETAILED, "__threadpool_cleanup_task: Enter (tsk=0x%x)\n", tsk);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_task: Enter (tsk=0x%x)\n", tsk);
 
     thd_hdl  = thread_self();
     thdp_hdl = thread_get_env(thd_hdl);
 
     /* Get threadpool mutex */
-    DBG(DBG_DETAILED, "__threadpool_cleanup_task: Get the lock\n");
     pthread_mutex_lock(&thdp_hdl->m_mutex);
-    DBG(DBG_DETAILED, "__threadpool_cleanup_task: Get the lock ok\n");
 
     /* Move cur thread from busy list to free list */
     status = dlist_remove_element(&thdp_hdl->m_busy_list, (dlist_element_t *)thd_hdl);
@@ -743,19 +742,19 @@ static void __threadpool_cleanup_task(thdpool_task_t * tsk)
     /* Release threadpool mutex */
     //pthread_mutex_unlock(&thdp_hdl->mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_cleanup_task: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_task: Exit\n");
 }
 
 static void __threadpool_notify_waiters(threadpool_handle hdl)
 {
-    DBG(DBG_DETAILED, "__threadpool_notify_waiters: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_notify_waiters: Enter (hdl=0x%x)\n", hdl);
 
     if (dlist_is_empty(&hdl->m_task_list) && dlist_is_empty(&hdl->m_busy_list)) {
         hdl->m_state &= ~THREADPOOL_STATE_WAIT;
         pthread_cond_broadcast(&hdl->m_wait_cond);
     }
 
-    DBG(DBG_DETAILED, "__threadpool_notify_waiters: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_notify_waiters: Exit\n");
 }
 
 static void __threadpool_cleanup_worker(threadpool_handle hdl)
@@ -764,22 +763,22 @@ static void __threadpool_cleanup_worker(threadpool_handle hdl)
     thread_handle   thd_hdl = NULL;
     thread_attrs_t  thd_attrs;
 
-    DBG(DBG_DETAILED, "__threadpool_cleanup_worker: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: Enter (hdl=0x%x)\n", hdl);
 
     hdl->m_cur_thd_nums--;
 
-    DBG(DBG_DETAILED, "__threadpool_cleanup_worker: Remaining %d thread left.\n", hdl->m_cur_thd_nums);
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: Remaining %d thread left.\n", hdl->m_cur_thd_nums);
 
     if (hdl->m_state & THREADPOOL_STATE_DESTROY) {
         if (hdl->m_cur_thd_nums == 0) {
-            DBG(DBG_DETAILED, "__threadpool_cleanup_worker: The last thread left.\n");
+            DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: The last thread left.\n");
             pthread_cond_broadcast(&hdl->m_exit_cond);
         }
     }
     else if (!dlist_is_empty(&hdl->m_task_list)
             && (hdl->m_cur_thd_nums < hdl->m_max_thd_nums)) {
         /* TODO: BUG here, current thread need exit, do we need create new one??? */
-        DBG(DBG_DETAILED, "__threadpool_cleanup_worker: Current thread eixt, create a new thread to process task.\n");
+        DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: Current thread eixt, create a new thread to process task.\n");
         thd_attrs         = default_thd_attrs;
         thd_attrs.environ = (void *)hdl;
         thd_hdl = thread_create((Fxn)__threadpool_run_stub, &thd_attrs);
@@ -794,7 +793,7 @@ static void __threadpool_cleanup_worker(threadpool_handle hdl)
     /* Release threadpool mutex */
     pthread_mutex_unlock(&hdl->m_mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_cleanup_worker: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: Exit\n");
 }
 
 static status_t
@@ -802,7 +801,7 @@ __threadpool_alloc_task_cell(threadpool_handle hdl, thdpool_task_t **tsk)
 {
     status_t status = OSA_ENOENT;
 
-    DBG(DBG_DETAILED, "__threadpool_alloc_task_cell: Enter (hdl=0x%x)\n",
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_alloc_task_cell: Enter (hdl=0x%x)\n",
             hdl);
 
     (*tsk) = NULL;
@@ -819,7 +818,7 @@ __threadpool_alloc_task_cell(threadpool_handle hdl, thdpool_task_t **tsk)
     /* Release threadpool task mutex */
     pthread_mutex_unlock(&hdl->m_tsk_mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_alloc_task_cell: Exit "
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_alloc_task_cell: Exit "
             "(status=0x%x)\n", status);
 
     return status;
@@ -830,7 +829,7 @@ __threadpool_free_task_cell(threadpool_handle hdl, thdpool_task_t *tsk)
 {
     status_t status = OSA_SOK;
 
-    DBG(DBG_DETAILED, "__threadpool_free_task_cell: Enter (hdl=0x%x, "
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_free_task_cell: Enter (hdl=0x%x, "
             "tsk=0x%x)\n", hdl, tsk);
 
     /* Get threadpool task mutex */
@@ -841,7 +840,7 @@ __threadpool_free_task_cell(threadpool_handle hdl, thdpool_task_t *tsk)
     /* Release threadpool task mutex */
     pthread_mutex_unlock(&hdl->m_tsk_mutex);
 
-    DBG(DBG_DETAILED, "__threadpool_free_task_cell: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "__threadpool_free_task_cell: Exit\n");
 
     return status;
 }

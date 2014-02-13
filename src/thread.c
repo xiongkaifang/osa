@@ -16,7 +16,7 @@
 /*  --------------------- Include user headers   ---------------------------- */
 #include "std_defs.h"
 #include "thread.h"
-#include "debug.h"
+#include "osa_debugger.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -85,6 +85,7 @@ thread_attrs_t default_thd_attrs = {
 static int              cur_init = 0;
 static pthread_key_t    thd_key;
 
+static const char * const GT_NAME = "thread";
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -175,7 +176,7 @@ thread_handle   thread_create(Fxn fxn, thread_attrs_t * attrs, ...)
     va_list       va;
     thread_handle thd_hdl = NULL;
 
-    DBG(DBG_DETAILED, "thread_create: Enter (fxn=0x%x, attrs=0x%x)\n", 
+    DBG(DBG_DETAILED, GT_NAME, "thread_create: Enter (fxn=0x%x, attrs=0x%x)\n", 
             fxn, attrs);
 
     if (attrs == NULL) {
@@ -217,14 +218,14 @@ thread_handle   thread_create(Fxn fxn, thread_attrs_t * attrs, ...)
         }
     }
 
-    DBG(DBG_DETAILED, "thread_create: Exit (hdl=0x%x)\n", thd_hdl);
+    DBG(DBG_DETAILED, GT_NAME, "thread_create: Exit (hdl=0x%x)\n", thd_hdl);
 
     return thd_hdl;
 }
 
 void            thread_delete(thread_handle hdl)
 {
-    DBG(DBG_DETAILED, "thread_delete: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "thread_delete: Enter (hdl=0x%x)\n", hdl);
 
     if (hdl != NULL) {
         unsigned short cancel = (hdl->thd_status == 0);
@@ -241,7 +242,7 @@ void            thread_delete(thread_handle hdl)
         free(hdl);
     }
 
-    DBG(DBG_DETAILED, "thread_delete: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "thread_delete: Exit\n");
 }
 
 //int             thread_get_pri(thread_handle hdl);
@@ -263,11 +264,11 @@ thread_handle   thread_self(void)
 {
     thread_handle   hdl = NULL;
 
-    DBG(DBG_DETAILED, "thread_self: Enter\n");
+    DBG(DBG_DETAILED, GT_NAME, "thread_self: Enter\n");
 
     hdl = (thread_handle)pthread_getspecific(thd_key);
 
-    DBG(DBG_DETAILED, "thread_self: Exit (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "thread_self: Exit (hdl=0x%x)\n", hdl);
 
     return hdl;
 }
@@ -276,16 +277,16 @@ int             thread_cancel(thread_handle hdl)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "thread_cancel: Enter (hdl=0x%x)\n", hdl);
+    DBG(DBG_DETAILED, GT_NAME, "thread_cancel: Enter (hdl=0x%x)\n", hdl);
 
     if (hdl == NULL) {
-        DBG(DBG_ERROR, "thread_cancel: Invalid arguments\n");
+        DBG(DBG_ERROR, GT_NAME, "thread_cancel: Invalid arguments\n");
         return -EINVAL;
     }
 
     status = pthread_cancel(hdl->thd_id);
 
-    DBG(DBG_DETAILED, "thread_cancel: Exit (status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "thread_cancel: Exit (status=0x%x)\n", status);
 
     return status;
 }
@@ -295,16 +296,16 @@ int             thread_join(thread_handle hdl)
 {
     int     status = 0;
 
-    DBG(DBG_DETAILED, "thread_join: Enter\n");
+    DBG(DBG_DETAILED, GT_NAME, "thread_join: Enter\n");
 
     if (hdl == NULL) {
-        DBG(DBG_ERROR, "thread_join: Invalid arguments\n");
+        DBG(DBG_ERROR, GT_NAME, "thread_join: Invalid arguments\n");
         return -EINVAL;
     }
 
     status = pthread_join(hdl->thd_id, NULL);
 
-    DBG(DBG_DETAILED, "thread_join: Exit (status=0x%x)\n", status);
+    DBG(DBG_DETAILED, GT_NAME, "thread_join: Exit (status=0x%x)\n", status);
 
     return status;
 
@@ -315,11 +316,11 @@ int             thread_join(thread_handle hdl)
 void            thread_yield(void)
 {
 
-    DBG(DBG_DETAILED, "thread_cancel: Enter\n");
+    DBG(DBG_DETAILED, GT_NAME, "thread_cancel: Enter\n");
 
     sched_yield();
 
-    DBG(DBG_DETAILED, "thread_cancel: Exit\n");
+    DBG(DBG_DETAILED, GT_NAME, "thread_cancel: Exit\n");
 }
 
 
@@ -337,8 +338,6 @@ void            thread_yield(void)
  */
 static void * __thread_run_stub(thread_handle hdl)
 {
-    DBG(DBG_DETAILED, "__thread_run_stub: ====================> Enter (hdl=0x%x)\n", hdl);
-
     pthread_setspecific(thd_key, hdl);
 
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -350,8 +349,6 @@ static void * __thread_run_stub(thread_handle hdl)
 
     /* TODO: Exit this thread */
     //pthread_exit(hdl);
-
-    DBG(DBG_DETAILED, "__thread_run_stub: ====================> Exit (hdl=0x%x)\n", hdl);
 
     return NULL;
 }

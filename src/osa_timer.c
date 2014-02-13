@@ -42,7 +42,6 @@
 #include "osa_task.h"
 #include "osa_task_mgr.h"
 #include "dlist.h"
-#include "debug.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -154,6 +153,8 @@ static task_object_t glb_osa_timer_tsk_obj =
 OSA_DECLARE_AND_INIT_MUTEX(glb_osa_timer_mutex);
 
 static unsigned int glb_cur_init = 0;
+
+static const char * const GT_NAME = "osa_timer";
 /*
  *  --------------------- Local function forward declaration -------------------
  */
