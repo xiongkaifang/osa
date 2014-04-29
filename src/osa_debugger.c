@@ -303,7 +303,8 @@ __osa_debugger_init(osa_debugger_object_t *pobj, const osa_debugger_prm_t *prm)
         time(&now_time);
         localtime_r(&now_time, &tim);
 
-        snprintf(filename, sizeof(filename) - 1, "%s_%04d%02d%02d.log",
+        snprintf(filename, sizeof(filename) - 1, "%s/%s_%04d%02d%02d.log",
+                pobj->m_debug_prm.m_folder,
                 pobj->m_debug_prm.m_name,
 				tim.tm_year + 1900, tim.tm_mon + 1, tim.tm_mday);
 
@@ -353,7 +354,8 @@ static void __osa_debugger_update(struct tm *ptm)
             fclose(pobj->m_out2);
         }
         
-        snprintf(filename, sizeof(filename) - 1, "%s_%04d%02d%02d.log",
+        snprintf(filename, sizeof(filename) - 1, "%s/%s_%04d%02d%02d.log",
+                pobj->m_debug_prm.m_folder,
                 pobj->m_debug_prm.m_name,
 				pobj->m_tm.tm_year + 1900, pobj->m_tm.tm_mon + 1, pobj->m_tm.tm_mday);
 

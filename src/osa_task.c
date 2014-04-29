@@ -722,7 +722,7 @@ status_t task_delete(task_t *tsk)
             msg_set_status(msg, OSA_SOK);
 
             status |= task_send_msg((*tsk), (*tsk), msg, MSG_TYPE_CMD);
-            status |= task_recv_msg((*tsk), &rcv_msg, MSG_TYPE_CMD);
+            status |= task_recv_msg((*tsk), &rcv_msg, MSG_TYPE_ACK);
             OSA_assert(rcv_msg == msg);
 
             task_free_msg(sizeof(*msg), rcv_msg);
