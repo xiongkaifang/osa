@@ -50,17 +50,46 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define OSA_STATUS_CLASS_GENERAL    (0x100000)
+#define OSA_STATUS_CLASS_NETWORK    (0x200000)
+#define OSA_STATUS_CLASS_IO         (0x400000)
+#define OSA_STATUS_CLASS_APP        (0x800000)
 
-#define OSA_SOK         0
-#define OSA_EFAIL       1
-#define OSA_EMEM        2
-#define OSA_ENOENT      3
-#define OSA_EEXIST      4
-#define OSA_EARGS       5
-#define OSA_EINVAL      6
+#define OSA_STATUS_TYPE_SUCCESS     (0x000000)
+#define OSA_STATUS_TYPE_INFO        (0x010000)
+#define OSA_STATUS_TYPE_WARNING     (0x020000)
+#define OSA_STATUS_TYPE_ERROR       (0x040000)
+#define OSA_STATUS_TYPE_FATAL       (0x080000)
 
-#define OSA_ISERROR(status)     (status != OSA_SOK)
+#define OSA_STATUS_FLAG_COUNT       (0x001000)
 
+#ifdef  OSA_SOK
+#undef  OSA_SOK
+#endif
+
+#ifdef  OSA_EFAIL
+#undef  OSA_EFAIL
+#endif
+
+#define OSA_SOK                     (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_SUCCESS|0|100)
+#define OSA_EFAIL                   (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|101)
+#define OSA_EMEM                    (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|102)
+#define OSA_ENOENT                  (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|103)
+#define OSA_EARGS                   (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|104)
+#define OSA_EINVAL                  (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|105)
+#define OSA_EEXIST                  (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|106)
+#define OSA_ERES                    (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|107)
+#define OSA_EPERM                   (OSA_STATUS_CLASS_GENERAL|OSA_STATUS_TYPE_ERROR|0|108)
+#define OSA_ECONNECT                (OSA_STATUS_CLASS_NETWORK|OSA_STATUS_TYPE_ERROR|0|200)
+#define OSA_ETIMEOUT                (OSA_STATUS_CLASS_IO|OSA_STATUS_TYPE_ERROR|0|300)
+#define OSA_EEOF                    (OSA_STATUS_CLASS_IO|OSA_STATUS_TYPE_WARNING|0|301)
+#define OSA_ENOTIPL                 (OSA_STATUS_CLASS_APP|OSA_STATUS_TYPE_WARNING|0|600)
+#define OSA_EBADCMD                 (OSA_STATUS_CLASS_APP|OSA_STATUS_TYPE_ERROR|0|601)
+
+#ifdef  OSA_ISERROR
+#undef  OSA_ISERROR
+#endif
+#define OSA_ISERROR(status)         (status != (OSA_SOK))
 
 /*
  *  --------------------- Data type definition ---------------------------------
@@ -110,6 +139,9 @@ typedef int status_t;
  *
  *  ============================================================================
  */
+const char * osa_status_get_description (status_t status);
+
+status_t     osa_status_get_description2(status_t status, char *buf, int len);
 
 #if defined(__cplusplus)
 }

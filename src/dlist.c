@@ -137,13 +137,13 @@ __dlist_count_apply_fxn(dlist_element_t * elem, void * data);
  */
 int  dlist_init(dlist_t * list)
 {
-    int       status = 0;
+    int       status = OSA_SOK;
     dlist_t * mylist = NULL;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_init: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
-        return -EINVAL;
+        return OSA_EINVAL;
     } else {
         list->head.next = &(list->head);
         list->head.prev = &(list->head);
@@ -156,17 +156,17 @@ int  dlist_init(dlist_t * list)
 
 int  dlist_create(dlist_t ** list)
 {
-    int       status = 0;
+    int       status = OSA_SOK;
     dlist_t * mylist = NULL;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_create: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
-        return -EINVAL;
+        return OSA_EINVAL;
     } else {
         mylist = calloc(1, sizeof(*mylist));
         if (mylist == NULL) {
-            status = -ENOMEM;
+            status = OSA_EMEM;
         } else {
             mylist->head.next = &(mylist->head);
             mylist->head.prev = &(mylist->head);
@@ -182,12 +182,12 @@ int  dlist_create(dlist_t ** list)
 
 int  dlist_delete(dlist_t * list)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_delete: Enter (list=0x%x)\n", list);
 
     if (list == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         free(list);
     }
@@ -204,13 +204,13 @@ int  dlist_is_empty(dlist_t * list)
 
 int  dlist_initialize_element(dlist_element_t * element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_initialize_element: Enter (element=0x%x)\n",
             element);
 
     if (element == NULL) {
-        status = -EINVAL; 
+        status = OSA_EINVAL;
     } else {
         element->next = element->prev = NULL;
     }
@@ -226,14 +226,14 @@ int  dlist_insert_before(dlist_t *          list,
                          dlist_element_t *  insert_element,
                          dlist_element_t *  existing_element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_insert_before: Enter (list=0x%x, "
             "insert_element=0x%x, existing_element=0x%x)\n", 
             list, insert_element, existing_element);
 
     if (list == NULL || insert_element == NULL || existing_element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         existing_element->prev->next = insert_element;
         insert_element->prev         = existing_element->prev;
@@ -251,13 +251,13 @@ int  dlist_insert_before(dlist_t *          list,
 
 int  dlist_put_tail(dlist_t * list, dlist_element_t * element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_put_tail: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         element->prev       = list->head.prev;
         element->next       = &list->head;
@@ -274,13 +274,13 @@ int  dlist_put_tail(dlist_t * list, dlist_element_t * element)
 
 int  dlist_remove_element(dlist_t * list, dlist_element_t * element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_remove_element: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         if (!dlist_is_empty(list)) {
             element->prev->next = element->next;
@@ -288,7 +288,7 @@ int  dlist_remove_element(dlist_t * list, dlist_element_t * element)
 
             element->next = element->prev = NULL;
         } else {
-            status = -ENOENT;
+            status = OSA_ENOENT;
         }
     }
 
@@ -300,13 +300,13 @@ int  dlist_remove_element(dlist_t * list, dlist_element_t * element)
 
 int  dlist_first(dlist_t * list, dlist_element_t ** element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_first: Enter (list=0x%x, element=0x%x)\n",
             list, element);
 
     if (list == NULL || element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         if (!dlist_is_empty(list)) {
             (*element) = list->head.next;
@@ -323,13 +323,13 @@ int  dlist_first(dlist_t * list, dlist_element_t ** element)
 
 int  dlist_get_head(dlist_t * list, dlist_element_t ** head_element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_get_head: Enter (list=0x%x, element=0x%x)\n",
             list, head_element);
 
     if (list == NULL || head_element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         if (!dlist_is_empty(list)) {
             (*head_element) = list->head.next;
@@ -351,13 +351,13 @@ int  dlist_next(dlist_t *          list,
                 dlist_element_t *  current_element,
                 dlist_element_t ** next_element)
 {
-    int     status = 0;
+    int     status = OSA_SOK;
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_next: Enter (list=0x%x, current_element=0x%x "
             "next_element=0x%x)\n", list, current_element, next_element);
 
     if (list == NULL || current_element == NULL || next_element == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         (*next_element) = NULL;
 
@@ -380,7 +380,7 @@ int  dlist_search_element(dlist_t *          list,
                           dlist_element_t ** elem,
                           DLIST_MATCH_FXN    match_fxn)
 {
-    int               status = 0;
+    int               status = OSA_SOK;
     bool              found  = false;
     dlist_element_t * temp   = NULL;
     dlist_element_t * temp1  = NULL;
@@ -389,10 +389,10 @@ int  dlist_search_element(dlist_t *          list,
             "elem=0x%x, match_fxn=0x%x)\n", list, data, elem, match_fxn);
 
     if (list == NULL || data == NULL || elem == NULL || match_fxn == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         if (dlist_is_empty(list)) {
-            status = -ENOENT;
+            status = OSA_ENOENT;
         }
 
         if (SUCCEEDED(status)) {
@@ -411,11 +411,11 @@ int  dlist_search_element(dlist_t *          list,
                     (*elem) = temp;
                 } else {
                     (*elem) = NULL;
-                    status  = -ENOENT;
+                    status  = OSA_ENOENT;
                 }
             } else {
                 (*elem) = NULL;
-                status = -ENOENT;
+                status = OSA_ENOENT;
             }
         }
     }
@@ -428,7 +428,7 @@ int  dlist_search_element(dlist_t *          list,
 
 int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
 {
-    int               status = 0;
+    int               status = OSA_SOK;
     int               retval = 0;
     dlist_element_t * temp   = NULL;
     dlist_element_t * temp1  = NULL;
@@ -437,7 +437,7 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
             "data=0x%x)\n", list, apply_fxn, data);
 
     if (list == NULL || apply_fxn == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         status = dlist_first(list, &temp);
         while (SUCCEEDED(status) && temp != NULL) {
@@ -455,10 +455,10 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
 
 int dlist_count(dlist_t * list, unsigned int * count)
 {
-    int               status = 0;
+    int               status = OSA_SOK;
 
     if (list == NULL || count == NULL) {
-        status = -EINVAL;
+        status = OSA_EINVAL;
     } else {
         (*count) = 0;
 
