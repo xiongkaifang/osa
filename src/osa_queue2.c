@@ -45,7 +45,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define queue_is_exit(queue)    ((queue)->m_state == OSA_QUEUE2_STATE_EXIT)
+#define osa_queue2_is_exit(queue)    ((queue)->m_state == OSA_QUEUE2_STATE_EXIT)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -269,7 +269,7 @@ status_t osa_queue2_set_state(osa_queue2_t *queue, osa_queue2_state_t state)
 
     queue->m_state = state;
 
-    if (oas_queue2_is_exit(queue)) {
+    if (osa_queue2_is_exit(queue)) {
         pthread_cond_broadcast(&queue->m_wr_cond);
         pthread_cond_broadcast(&queue->m_rd_cond);
     }
