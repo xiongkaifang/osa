@@ -61,7 +61,7 @@ extern "C" {
 
 #define OSA_TIMER_EVENT_NUM_MAX (32)
 
-#define OSA_TIMER_MIN_SHRESHOLD (16000)
+#define OSA_TIMER_MIN_SHRESHOLD (1000)
 
 #define OSA_TIMER_CRITICAL_ENTER()          \
     do {                                    \
