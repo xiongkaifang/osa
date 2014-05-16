@@ -196,7 +196,7 @@ void     osa_debugger(int level, const char *tags, const char *fmt, ...)
 {
     osa_debugger_object_t *pobj = &glb_debug_obj;
 
-    if (level >= pobj->m_debug_level && pobj->m_out != NULL) {
+    if (level >= pobj->m_debug_level) {
 
         mutex_lock(&pobj->m_mutex);
 
@@ -207,28 +207,26 @@ void     osa_debugger(int level, const char *tags, const char *fmt, ...)
         gettimeofday(&tv, NULL);
         localtime_r(&tv.tv_sec, &tim);
 
-        fprintf(pobj->m_out, "%d-%02d-%02dT%02d:%02d:%02d.%03d| %s| ",
-                tim.tm_year + 1900, tim.tm_mon + 1, tim.tm_mday, tim.tm_hour, tim.tm_min, tim.tm_sec,
-                tv.tv_usec / 1000, tags);
-        fflush(pobj->m_out);
+        if (pobj->m_out != NULL) {
+            fprintf(pobj->m_out, "%d-%02d-%02dT%02d:%02d:%02d.%03d| %s| ",
+                    tim.tm_year + 1900, tim.tm_mon + 1, tim.tm_mday, tim.tm_hour, tim.tm_min, tim.tm_sec,
+                    tv.tv_usec / 1000, tags);
+            va_start(ap, fmt);
+            vfprintf(pobj->m_out, fmt, ap);
+            va_end(ap);
+            fflush(pobj->m_out);
+        }
 
         if (pobj->m_out2 != NULL) {
             fprintf(pobj->m_out2, "%d-%02d-%02dT%02d:%02d:%02d.%03d| %s| ",
                     tim.tm_year + 1900, tim.tm_mon + 1, tim.tm_mday, tim.tm_hour, tim.tm_min, tim.tm_sec,
                     tv.tv_usec / 1000, tags);
+            va_start(ap, fmt);
+            vfprintf(pobj->m_out2, fmt, ap);
+            va_end(ap);
             fflush(pobj->m_out2);
         }
 
-        va_start(ap, fmt);
-
-        vfprintf(pobj->m_out, fmt, ap);
-
-        if (pobj->m_out2 != NULL) {
-            vfprintf(pobj->m_out2, fmt, ap);
-        }
-
-        va_end(ap);
-        
         __osa_debugger_update(&tim);
 
         mutex_unlock(&pobj->m_mutex);
@@ -248,6 +246,8 @@ status_t osa_debugger_setlevel(int level)
     pobj->m_debug_level = level;
 
     mutex_unlock(&pobj->m_mutex);
+
+    DBG(DBG_ERROR, "osa debugger", "Logger system set debug level=%d.\n", pobj->m_debug_level);
 
     return OSA_SOK;
 }
