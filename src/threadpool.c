@@ -783,6 +783,19 @@ static void __threadpool_cleanup_worker(threadpool_handle hdl)
         thd_attrs.environ = (void *)hdl;
         thd_hdl = thread_create((Fxn)__threadpool_run_stub, &thd_attrs);
         if (thd_hdl != NULL) {
+
+            /*
+             *  Modified by: xiong-kaifang.
+             *
+             *  Date       : May 16, 2014.
+             *
+             *  Description:
+             *
+             *               Add the new created thread to thdpool free list.
+             */
+            status = dlist_initialize_element((dlist_element_t *)thd_hdl);
+            status = dlist_put_tail(&hdl->m_free_list, (dlist_element_t *)thd_hdl);
+
             hdl->m_cur_thd_nums++;
         }
     }
