@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module_cmds>
+    <cmd id="100" idtxt="MODULE_CMD_CREATE_CHANNEL" cmd="createchn" desc="Create module channel." access="OSA_CMD_ACCESS_USER">
+		<arg type="OSA_CMD_ARG_UNSIGNED" tag="c" name="Channel ID (0-15)" required="1" />
+	</cmd>
+    <cmd id="101" idtxt="MODULE_CMD_DELETE_CHANNEL" cmd="deletechn" desc="Delete module channel." access="OSA_CMD_ACCESS_USER">
+		<arg type="OSA_CMD_ARG_UNSIGNED" tag="c" name="Channel ID (0-15)" required="1" />
+	</cmd>
+    <cmd id="102" idtxt="MODULE_CMD_SET_BITRATE" cmd="setbitrate" desc="Set module channel bit rate." access="OSA_CMD_ACCESS_USER">
+		<arg type="OSA_CMD_ARG_UNSIGNED" tag="c" name="Channel ID (0-15)" required="1" />
+		<arg type="OSA_CMD_ARG_UNSIGNED" tag="r" name="Bitrate (500Kb-8000Kb)" required="1" />
+	</cmd>
+</module_cmds>
