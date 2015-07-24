@@ -2,7 +2,7 @@
  *
  *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co, Ltd.
  *
- *  @File Name:	tsk_drv_test4.h
+ *  @File Name:	osa_timer_drv.h
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2012-02-24
  *
@@ -29,13 +29,12 @@
  *  ============================================================================
  */
 
-#if !defined (__OSA_TSK_DRV_TEST4_H)
-#define __OSA_TSK_DRV_TEST4_H
+#if !defined (__OSA_TIMER_DRV_H)
+#define __OSA_TIMER_DRV_H
 
 /*  --------------------- Include system headers ---------------------------- */
 
 /*  --------------------- Include user headers   ---------------------------- */
-#include "tsk_common.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,7 +87,7 @@ extern "C" {
  *  @Input:	        //	对输入参数的说明
  *
  *  @Output:	    //	对输出参数的说明
- 4
+ *
  *  @Return:	    //	函数返回值的说明
  *
  *  @Enter          //  Precondition
@@ -99,12 +98,9 @@ extern "C" {
  *
  *  ============================================================================
  */
-extern task_object_t glb_tsk_obj4;
-
-extern status_t tsk_drv_test4_main(void *ud, task_t tsk, msg_t **msg);
 
 #if defined(__cplusplus)
 }
 #endif  /* defined(__cplusplus) */
 
-#endif  /* if !defined (__OSA_TSK_DRV_TEST1_H) */
+#endif  /* if !defined (__OSA_TIMER_DRV_H) */
