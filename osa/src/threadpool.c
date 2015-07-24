@@ -62,7 +62,7 @@ struct __thdpool_task_t
 {
     unsigned int            m_reserved[2];
     threadpool_task_state_t m_tsk_state;
-    task_common_operation_t m_tsk_ops;
+    task_data_t             m_tsk_ops;
     void                  * m_userdata;
 };
 
@@ -110,9 +110,11 @@ static threadpool_params_t default_thdp_params = {
     .m_max_tsk_nums = THREADPOOL_TASK_MAX
 };
 
-static unsigned int cur_cnt_index = 0;
+static unsigned int cur_cnt_index  = 0;
 
-static const char * const GT_NAME = "thdpool";
+static const char * const GT_NAME  = "thdpool";
+
+static const char * const THD_NAME = "N/A";
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -145,7 +147,7 @@ static const char * const GT_NAME = "thdpool";
  *
  *  ============================================================================
  */
-static status_t task_common_main(const task_common_operation_t *ops, void *arg);
+static status_t task_common_main(const task_data_t *ops, void *arg);
 
 static status_t
 __threadpool_init(threadpool_handle hdl, const threadpool_params_t *params);
@@ -234,7 +236,7 @@ status_t threadpool_create(threadpool_t *thdp, const threadpool_params_t *prm)
 }
 
 status_t threadpool_add_task(threadpool_t thdp,
-        const task_operation_t *tsk_ops, task_token_t *token)
+        const task_data_t *tsk_data, task_token_t *token)
 {
     int             status;
     thread_attrs_t  thd_attrs;
@@ -246,9 +248,9 @@ status_t threadpool_add_task(threadpool_t thdp,
     hdl = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
 
     DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Enter (hdl=0x%x, "
-        "task_ops=0x%x)\n", hdl, tsk_ops);
+        "task_data=0x%x)\n", hdl, tsk_data);
 
-    if (hdl == NULL || tsk_ops == NULL || token == NULL) {
+    if (hdl == NULL || tsk_data == NULL || token == NULL) {
         DBG(DBG_ERROR, GT_NAME, "threadpool_add_task: Invalid arguments.\n");
         return OSA_EARGS;
     }
@@ -263,7 +265,7 @@ status_t threadpool_add_task(threadpool_t thdp,
 
     tsk_p->m_tsk_state = THREADPOOL_TASK_PENDING;
     tsk_p->m_userdata  = NULL;
-    memcpy(&tsk_p->m_tsk_ops, tsk_ops, sizeof(task_operation_t));
+    memcpy(&tsk_p->m_tsk_ops, tsk_data, sizeof(task_data_t));
 
     /* Get threadpool mutex */
     pthread_mutex_lock(&hdl->m_mutex);
@@ -275,7 +277,8 @@ status_t threadpool_add_task(threadpool_t thdp,
         DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Using idle thread to process this task.\n", tsk_p);
         pthread_cond_signal(&hdl->m_work_cond);
     } else if (hdl->m_cur_thd_nums < hdl->m_max_thd_nums) {
-        thd_attrs = default_thd_attrs;
+        thd_attrs         = default_thd_attrs;
+        thd_attrs.name    = (char *)THD_NAME;
         thd_attrs.environ = (void *)hdl;
 
         DBG(DBG_DETAILED, GT_NAME, "threadpool_add_task: Create a new thread to process this task.\n");
@@ -437,17 +440,16 @@ status_t threadpool_instruments(threadpool_t thdp)
  *  ============================================================================
  */
 static status_t
-task_common_main(const task_common_operation_t *ops, void *arg)
+task_common_main(const task_data_t *ops, void *arg)
 {
     status_t status = OSA_SOK;
 
-    OSA_assert(ops != NULL && ops->m_tsk_ops.m_main != NULL);
+    OSA_assert(ops != NULL && ops->m_main != NULL);
 
-    status |= ops->m_tsk_ops.m_main(
-                ops->m_tsk_ops.m_args[0], ops->m_tsk_ops.m_args[1],
-                ops->m_tsk_ops.m_args[2], ops->m_tsk_ops.m_args[3],
-                ops->m_tsk_ops.m_args[4], ops->m_tsk_ops.m_args[5],
-                ops->m_tsk_ops.m_args[6], ops->m_tsk_ops.m_args[7]);
+    status |= ops->m_main(ops->m_args[0], ops->m_args[1],
+                          ops->m_args[2], ops->m_args[3],
+                          ops->m_args[4], ops->m_args[5],
+                          ops->m_args[6], ops->m_args[7]);
 
     return (status);
 }
@@ -702,6 +704,9 @@ __threadpool_task_dispatch(threadpool_handle hdl,
     /* Fetch the task from task data list */
     status = dlist_get_head(&hdl->m_task_list, (dlist_element_t **)tsk);
 
+    /* Set the thread name to task name */
+    thread_set_name(thd_hdl, (*tsk)->m_tsk_ops.m_name);
+
     //pthread_mutex_unlock(&hdl->mutex);
 
     DBG(DBG_DETAILED, GT_NAME, "__threadpool_task_dispatch: Exit (status=0x%x)\n", status);
@@ -723,6 +728,9 @@ static void __threadpool_cleanup_task(thdpool_task_t * tsk)
 
     /* Get threadpool mutex */
     pthread_mutex_lock(&thdp_hdl->m_mutex);
+
+    /* Reset the thread mame to default name: THD_NAME */
+    thread_set_name(thd_hdl, (char *)THD_NAME);
 
     /* Move cur thread from busy list to free list */
     status = dlist_remove_element(&thdp_hdl->m_busy_list, (dlist_element_t *)thd_hdl);
@@ -867,8 +875,8 @@ __threadpool_instruments_apply_fxn(dlist_element_t *elem, void *data)
     thd_hdl = (thread_handle)elem;
     OSA_assert(thd_hdl != NULL);
 
-    fprintf(stdout, "    [%02d]    | [0x%08x] |    [%s]    | [%s]\n",
-            cur_cnt_index++, thd_hdl, (const char *)data, "Not implementation");
+    fprintf(stdout, "    [%02d]    | [0x%08x] |    [%s]    | [%-22s]\n",
+            cur_cnt_index++, thd_hdl, (const char *)data, thread_get_name(thd_hdl));
 
     return status;
 }

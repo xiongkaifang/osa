@@ -252,13 +252,26 @@ void *          thread_get_env(thread_handle hdl)
     return (hdl != NULL ? hdl->arg : NULL);
 }
 
-//char *          thread_get_name(thread_handle hdl);
+const char *    thread_get_name(thread_handle hdl)
+{
+    return (hdl != NULL ? hdl->name : NULL);
+}
 
 //int             thread_set_pri(thread_handle hdl, int newpri);
 
 //void *          thread_set_env(thread_handle hdl, void *env);
 
-//char *          thread_set_name(thread_handle hdl, char *name);
+const char *    thread_set_name(thread_handle hdl, char *name)
+{
+    char * orign_name = NULL;
+
+    if (hdl != NULL) {
+        orign_name = hdl->name;
+        hdl->name  = name;
+    }
+
+    return orign_name;
+}
 
 thread_handle   thread_self(void)
 {

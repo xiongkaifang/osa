@@ -938,7 +938,7 @@ __task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
     status = task_get_state(tsk_node->m_task, &state);
     OSA_assert(OSA_SOK == status);
 
-    fprintf(stdout, "    [%02d]    | [0x%08x] |     [%02d]     | [%s]\n", 
+    fprintf(stdout, "    [%02d]    | [0x%08x] |     [%02d]     | [%-22s]\n",
             cnt++, tsk_node->m_task, state, tsk_node->m_name);
 
     if (cnt >= tskmgr->m_tsk_cnt) {

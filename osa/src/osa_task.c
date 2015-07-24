@@ -292,7 +292,7 @@ status_t task_create(const char *name, TASK_MAIN main,
 	status_t status = OSA_SOK;
     task_node_t *tsk_node = NULL;
 	task_handle tsk_hdl = NULL;
-	task_operation_t tsk_ops;
+	task_data_t tsk_data;
 	
 	(*tsk) = TASK_INVALID_TSK;
 	status = __tasklist_alloc_task(&glb_tsklist_obj, &tsk_node);
@@ -304,7 +304,7 @@ status_t task_create(const char *name, TASK_MAIN main,
 
     tsk_hdl = &tsk_node->m_tsk;
 	(*tsk) = (task_t)tsk_hdl;
-	
+
 	tsk_hdl->m_tsk_main   = main;
 	tsk_hdl->m_tsk_pri    = pri;
 	tsk_hdl->m_stack_size = stack_size;
@@ -315,17 +315,18 @@ status_t task_create(const char *name, TASK_MAIN main,
         return status;
     }
 
-	tsk_ops.m_main    = (Fxn)__task_internal_main;
-	tsk_ops.m_args[0] = (unsigned int)tsk_node;
-	tsk_ops.m_args[1] = (unsigned int)NULL;
-	tsk_ops.m_args[2] = (unsigned int)NULL;
-	tsk_ops.m_args[3] = (unsigned int)NULL;
-	tsk_ops.m_args[4] = (unsigned int)NULL;
-	tsk_ops.m_args[5] = (unsigned int)NULL;
-	tsk_ops.m_args[6] = (unsigned int)NULL;
-	tsk_ops.m_args[7] = (unsigned int)NULL;
-	
-	status = threadpool_add_task(glb_tsklist_obj.m_thdpool, &tsk_ops, &tsk_hdl->m_tsk_token);
+    tsk_data.m_name    = (char *)name;
+    tsk_data.m_main    = (Fxn)__task_internal_main;
+    tsk_data.m_args[0] = (unsigned int)tsk_node;
+    tsk_data.m_args[1] = (unsigned int)NULL;
+    tsk_data.m_args[2] = (unsigned int)NULL;
+    tsk_data.m_args[3] = (unsigned int)NULL;
+    tsk_data.m_args[4] = (unsigned int)NULL;
+    tsk_data.m_args[5] = (unsigned int)NULL;
+    tsk_data.m_args[6] = (unsigned int)NULL;
+    tsk_data.m_args[7] = (unsigned int)NULL;
+
+	status = threadpool_add_task(glb_tsklist_obj.m_thdpool, &tsk_data, &tsk_hdl->m_tsk_token);
 	if (OSA_ISERROR(status)) {
 		__tasklist_free_task(&glb_tsklist_obj, tsk_node);
 		return status;

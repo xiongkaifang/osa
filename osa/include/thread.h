@@ -107,13 +107,13 @@ void            thread_delete(thread_handle hdl);
 
 void *          thread_get_env(thread_handle hdl);
 
-//char *          thread_get_name(thread_handle hdl);
+const char *    thread_get_name(thread_handle hdl);
 
 //int             thread_set_pri(thread_handle hdl, int newpri);
 
 //void *          thread_set_env(thread_handle hdl, void *env);
 
-//char *          thread_set_name(thread_handle hdl, char *name);
+const char *    thread_set_name(thread_handle hdl, char *name);
 
 thread_handle   thread_self(void);
 

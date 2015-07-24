@@ -75,6 +75,7 @@ enum __threadpool_task_state_t
     THREADPOOL_TASK_FINISHED = 0x04,
 };
 
+#if 0
 struct __task_operation_t;
 typedef struct __task_operation_t task_operation_t;
 struct __task_operation_t
@@ -88,6 +89,15 @@ typedef struct __task_common_operation_t task_common_operation_t;
 struct __task_common_operation_t
 {
     task_operation_t    m_tsk_ops;
+};
+#endif
+
+struct __task_data_t; typedef struct __task_data_t task_data_t;
+struct __task_data_t
+{
+    char *          m_name;
+    Fxn             m_main;
+    unsigned int    m_args[THREADPOOL_TASK_ARGS_MAX];
 };
 
 /*
@@ -124,7 +134,7 @@ struct __task_common_operation_t
  */
 status_t threadpool_create(threadpool_t *thdp, const threadpool_params_t *prm);
 
-status_t threadpool_add_task(threadpool_t thdp, const task_operation_t *tsk_ops, task_token_t *token);
+status_t threadpool_add_task(threadpool_t thdp, const task_data_t *tsk_data, task_token_t *token);
 
 status_t threadpool_sync_task(threadpool_t thdp, task_token_t task, int cmd, void *arg);
 
