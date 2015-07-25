@@ -1,6 +1,6 @@
 /** ============================================================================
  *
- *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co, Ltd.
+ *  Copyright (C), 1987 - 2015, xiong-kaifang Tech. Co, Ltd.
  *
  *  @File Name:	osa.h
  *
@@ -11,7 +11,7 @@
  *		            //	制、顺序、独立或依赖等关系
  *		            //
  *
- *	                The format for header file.
+ *	                The common macro and datatypes for osa module.
  *
  *  @Others:	    //	其它内容说明
  *
@@ -21,13 +21,13 @@
  *
  *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
  *	        	    //	时间及修改内容简述
- *	    1.  Date       :
- *	        Author     :
- *	        Decsription:
  *
- *	    2.  Date       : Dec 11, 2013.
- *	        Author     : xiong-kaifang.
- *	        Decsription: Add two macro OSA_ARRAYINDEX and OSA_ARRAYISVALIDENTRY.
+ *	<author>	    <time>	     <version>	    <desc>
+ *  xiong-kaifang   2013-04-06     v1.0	        Write this module.
+ *
+ *  xiong-kaifang   2013-12-11     v1.1         Add two macro:
+ *                                              OSA_ARRAYINDEX and
+ *                                              OSA_ARRAYISINVALIDENTRY
  *
  *  ============================================================================
  */

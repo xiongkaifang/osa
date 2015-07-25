@@ -1,14 +1,13 @@
 /** ============================================================================
  *
- *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co.,, Ltd.
+ *  Copyright (C), 1987 - 2015, xiong-kaifang Tech. Co.,, Ltd.
  *
  *  @File name:	osa_timer.c
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-09-03
  *
- *  @Description:   The description of this file.
+ *  @Description:   The osa timer.
  *	
- *	                The template format for source file.
  *
  *  @Version:	    v1.0
  *
@@ -19,7 +18,7 @@
  *  @History:	     //	历史修改记录
  *
  *	<author>	    <time>	     <version>	    <desc>
- *  xiong-kaifang   2013-09-03     v1.0	        write this module.
+ *  xiong-kaifang   2013-09-03     v1.0	        Write this module.
  *
  *  xiong-kaifang   2013-12-12     v1.1         Use microsecond to caculate
  *                                              elapesed time.

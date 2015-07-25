@@ -1,9 +1,27 @@
-/*
- *  thread.c
+/** ============================================================================
  *
- *  Created on: Sep 13, 2012
- *  Author    : xkf
+ *  Copyright (C), 1987 - 2015, xiong-kaifang Tech. Co.,, Ltd.
  *
+ *  @File name:	thread.c
+ *
+ *  @Author: xiong-kaifang   Version: v1.0   Date: 2012-09-13
+ *
+ *  @Description:   The thread.
+ *	
+ *
+ *  @Version:	    v1.0
+ *
+ *  @Function List:  //	主要函数及功能
+ *	    1.  －－－－－
+ *	    2.  －－－－－
+ *
+ *  @History:	     //	历史修改记录
+ *
+ *	<author>	    <time>	     <version>	    <desc>
+ *  xiong-kaifang   2012-09-13     v1.0	        Write this module.
+ *
+ *
+ *  ============================================================================
  */
 
 /*  --------------------- Include system headers ---------------------------- */

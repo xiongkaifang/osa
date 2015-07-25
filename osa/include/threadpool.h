@@ -1,8 +1,32 @@
-/*
- *  threadpool.h
+/** ============================================================================
  *
- *  Created on: Sep 12, 2012
- *  Author    : xkf
+ *  Copyright (C), 1987 - 2015, xiong-kaifang Tech. Co, Ltd.
+ *
+ *  @File Name:	threadpool.h
+ *
+ *  @Author: xiong-kaifang   Version: v1.0   Date: 2012-09-12
+ *
+ *  @Description:   //	用于详细说明此程序文件完成的主要功能，与其它模块
+ *		            //	或函数的接口，输出值，取值范围、含义及参数间的控
+ *		            //	制、顺序、独立或依赖等关系
+ *		            //
+ *
+ *	                The header file for threadpool(a implementation for thread
+ *	                pool).
+ *
+ *  @Others:	    //	其它内容说明
+ *
+ *  @Function List: //	主要函数列表，每条记录就包括函数名及功能简要说明
+ *	    1.  ...
+ *	    2.  ...
+ *
+ *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
+ *	        	    //	时间及修改内容简述
+ *
+ *	<author>	    <time>	     <version>	    <desc>
+ *  xiong-kaifang   2012-09-12     v1.0	        Write this module.
+ *
+ *  ============================================================================
  */
 
 #if !defined (THREADPOOL_H_)

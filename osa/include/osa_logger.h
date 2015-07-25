@@ -1,8 +1,8 @@
 /** ============================================================================
  *
- *  Copyright (C), 1987 - 2013, xiong-kaifang Tech. Co, Ltd.
+ *  Copyright (C), 1987 - 2015, xiong-kaifang Tech. Co, Ltd.
  *
- *  @File Name:	osa_mem.h
+ *  @File Name:	osa_logger.h
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-06
  *
@@ -11,7 +11,7 @@
  *		            //	制、顺序、独立或依赖等关系
  *		            //
  *
- *	                The format for header file.
+ *	                The header file for osa logger.
  *
  *  @Others:	    //	其它内容说明
  *
@@ -21,16 +21,15 @@
  *
  *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
  *	        	    //	时间及修改内容简述
- *	    1.  Date:
- *	        Author:
- *	        Modification:
- *	    2.  ...
+ *
+ *	<author>	    <time>	     <version>	    <desc>
+ *  xiong-kaifang   2013-04-06     v1.0	        Write this module.
  *
  *  ============================================================================
  */
 
-#if !defined (__OSA_MEM_H)
-#define __OSA_MEM_H
+#if !defined (__OSA_LOGGER_H)
+#define __OSA_LOGGER_H
 
 /*  --------------------- Include system headers ---------------------------- */
 
@@ -120,4 +119,4 @@ status_t osa_logger_deinit(void);
 }
 #endif  /* defined(__cplusplus) */
 
-#endif  /* if !defined (__OSA_MEM_H) */
+#endif  /* if !defined (__OSA_LOGGER_H) */
