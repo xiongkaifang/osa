@@ -32,6 +32,7 @@
 #include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "osa.h"
 #include "dlist.h"
 #include "std_defs.h"
 #include "thread.h"
@@ -52,7 +53,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define THREAD_MAX_ARGS (8)
+#define THREAD_MAX_ARGS (4)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -74,7 +75,7 @@ struct __thread_t {
     pthread_attr_t      pattrs;
 
     Fxn                 fxn;
-    unsigned int        args[THREAD_MAX_ARGS];
+    Arg                 args[THREAD_MAX_ARGS];
 
     int                 pri;
     char              * name;
@@ -221,8 +222,8 @@ thread_handle   thread_create(Fxn fxn, thread_attrs_t * attrs, ...)
 
         /* Copy up to 8 arguments from task */
         va_start(va, attrs);
-        for (i = 0; i < THREAD_MAX_ARGS; i++) {
-            thd_hdl->args[i] = va_arg(va, unsigned int);
+        for (i = 0; i < OSA_ARRAYSIZE(thd_hdl->args); i++) {
+            thd_hdl->args[i] = va_arg(va, Arg);
         }
         va_end(va);
 
@@ -375,8 +376,7 @@ static void * __thread_run_stub(thread_handle hdl)
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
     hdl->exit_status = (int)hdl->fxn(
-            hdl->args[0], hdl->args[1],hdl->args[2], hdl->args[3],
-            hdl->args[4], hdl->args[5],hdl->args[6], hdl->args[7]
+            hdl->args[0], hdl->args[1],hdl->args[2], hdl->args[3]
             );
 
     /* TODO: Exit this thread */

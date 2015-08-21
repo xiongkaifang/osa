@@ -293,6 +293,7 @@ status_t task_create(const char *name, TASK_MAIN main,
 					 unsigned int init_state, void *userdata,
 					 task_t *tsk)
 {
+    int i;
 	status_t status = OSA_SOK;
     task_node_t *tsk_node = NULL;
 	task_handle tsk_hdl = NULL;
@@ -322,14 +323,11 @@ status_t task_create(const char *name, TASK_MAIN main,
     tsk_data.m_name    = (char *)name;
     tsk_data.m_main    = (Fxn)__task_internal_main;
     tsk_data.m_exit    = (Fxn)__task_internal_exit;
-    tsk_data.m_args[0] = (unsigned int)tsk_node;
-    tsk_data.m_args[1] = (unsigned int)NULL;
-    tsk_data.m_args[2] = (unsigned int)NULL;
-    tsk_data.m_args[3] = (unsigned int)NULL;
-    tsk_data.m_args[4] = (unsigned int)NULL;
-    tsk_data.m_args[5] = (unsigned int)NULL;
-    tsk_data.m_args[6] = (unsigned int)NULL;
-    tsk_data.m_args[7] = (unsigned int)NULL;
+
+    for (i = 0; i < OSA_ARRAYSIZE(tsk_data.m_args); i++) {
+        tsk_data.m_args[i] = (Arg)NULL;
+    }
+    tsk_data.m_args[0] = (Arg)tsk_node;
 
 	status = threadpool_add_task(glb_tsklist_obj.m_thdpool, &tsk_data, &tsk_hdl->m_tsk_token);
 	if (OSA_ISERROR(status)) {
