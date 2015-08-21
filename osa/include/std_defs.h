@@ -25,6 +25,8 @@
  *	<author>	    <time>	     <version>	    <desc>
  *  xiong-kaifang   2012-09-12     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-08-21     V1.1         Add datatype Arg.
+ *
  *  ============================================================================
  */
 
@@ -61,7 +63,9 @@ typedef unsigned char   u_int8_t;
 typedef unsigned short  u_int16_t;
 typedef unsigned int    u_int32_t;
 
-typedef int (*Fxn)();
+typedef int             (*Fxn)();
+
+typedef void *          Arg;
 
 /** ----------------------------------------------------------------------------
  *  @Name:          Structure name
