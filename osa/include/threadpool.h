@@ -121,6 +121,7 @@ struct __task_data_t
 {
     char *          m_name;
     Fxn             m_main;
+    Fxn             m_exit;
     unsigned int    m_args[THREADPOOL_TASK_ARGS_MAX];
 };
 

@@ -20,6 +20,8 @@
  *	<author>	    <time>	     <version>	    <desc>
  *  xiong-kaifang   2012-09-12     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-08-21     V1.1         Add
+ *                                              threadpool_cancel_task routine.
  *
  *  ============================================================================
  */
@@ -165,6 +167,9 @@ static const char * const THD_NAME = "N/A";
  *
  *  ============================================================================
  */
+static bool
+__threadpool_find_match_fxn(dlist_element_t *elem, void *data);
+
 static status_t task_common_main(const task_data_t *ops, void *arg);
 
 static status_t
@@ -365,6 +370,65 @@ void threadpool_sync(threadpool_handle hdl, task_token_t tsk_token,
 }
 #endif
 
+status_t threadpool_cancel_task(threadpool_t thdp, task_token_t token)
+{
+    Bool              be_canceled = FALSE;
+    status_t          status      = OSA_SOK;
+    thdpool_task_t *  ptsk        = NULL;
+    threadpool_handle hdl         = THREADPOOL_GET_THDPOOL_HANDLE(thdp);
+
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_cancel_task: Enter (hdl=0x%x)\n", hdl);
+
+    if (hdl == NULL || token == NULL) {
+        DBG(DBG_ERROR, GT_NAME, "threadpool_cancel_task: Invalid arguments.\n");
+        return OSA_EARGS;
+    }
+
+    /* Get threadpool mutex */
+    pthread_mutex_lock(&hdl->m_mutex);
+
+    /*
+     *  Step1: Look up the task in the tasklist. If we find it, we just remove
+     *         it from the tasklists.
+     *
+     */
+    status = dlist_search_element(&hdl->m_task_list, (void *)token,
+                                 (dlist_element_t **)&ptsk, __threadpool_find_match_fxn);
+
+    if (!OSA_ISERROR(status)) {
+
+        status = dlist_remove_element(&hdl->m_task_list, (dlist_element_t *)ptsk);
+
+        OSA_assert(OSA_SOK == status);
+
+        be_canceled = TRUE;
+    }
+
+    /*
+     *  Step2: If not, we just call the 'exit' function to tell the task to exit.
+     *
+     */
+    if (!be_canceled) {
+        ptsk = (thdpool_task_t *)token;
+
+        if (ptsk->m_tsk_ops.m_exit != NULL) {
+
+            status = ptsk->m_tsk_ops.m_exit(
+                     ptsk->m_tsk_ops.m_args[0], ptsk->m_tsk_ops.m_args[1],
+                     ptsk->m_tsk_ops.m_args[2], ptsk->m_tsk_ops.m_args[3],
+                     ptsk->m_tsk_ops.m_args[4], ptsk->m_tsk_ops.m_args[5],
+                     ptsk->m_tsk_ops.m_args[6], ptsk->m_tsk_ops.m_args[7]);
+        }
+    }
+
+    /* Release threadpool mutex */
+    pthread_mutex_unlock(&hdl->m_mutex);
+
+    DBG(DBG_DETAILED, GT_NAME, "threadpool_cancel_task: Exit (status=0x%x)\n", status);
+
+    return status;
+}
+
 status_t threadpool_wait(threadpool_t thdp)
 {
     status_t status = OSA_SOK;
@@ -457,6 +521,12 @@ status_t threadpool_instruments(threadpool_t thdp)
  *
  *  ============================================================================
  */
+static bool
+__threadpool_find_match_fxn(dlist_element_t *elem, void *data)
+{
+    return (elem == (dlist_element_t *)data);
+}
+
 static status_t
 task_common_main(const task_data_t *ops, void *arg)
 {

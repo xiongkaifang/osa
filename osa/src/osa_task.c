@@ -96,12 +96,15 @@ struct __task_t
 	unsigned int	m_reserved[2];
 
     unsigned char   m_name[32];
-	mailbox_t		m_tsk_mbx;
+    mailbox_t		m_tsk_mbx;
 	
 	TASK_MAIN		m_tsk_main;
 	unsigned int	m_tsk_pri;
 	unsigned int	m_stack_size;
-	unsigned int	m_tsk_state;
+
+    volatile
+    unsigned int	m_tsk_state;
+
 	void          * m_userdata;
 	task_token_t	m_tsk_token;
     task_node_t   * m_tsk_node;
@@ -208,6 +211,8 @@ static status_t
 task_deinit(task_handle hdl);
 
 static void * __task_internal_main(void *userdata);
+
+static void * __task_internal_exit(void *userdata);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -316,6 +321,7 @@ status_t task_create(const char *name, TASK_MAIN main,
 
     tsk_data.m_name    = (char *)name;
     tsk_data.m_main    = (Fxn)__task_internal_main;
+    tsk_data.m_exit    = (Fxn)__task_internal_exit;
     tsk_data.m_args[0] = (unsigned int)tsk_node;
     tsk_data.m_args[1] = (unsigned int)NULL;
     tsk_data.m_args[2] = (unsigned int)NULL;
@@ -332,7 +338,6 @@ status_t task_create(const char *name, TASK_MAIN main,
 	}
 	
 	(*tsk) = (task_t)tsk_hdl;
-	
 
 	return status;
 }
@@ -702,32 +707,13 @@ status_t task_set_state(task_t tsk, task_state_t  state)
 status_t task_delete(task_t *tsk)
 {
 	status_t status = OSA_SOK;
-	task_state_t state;
 	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(*tsk);
 	
 	OSA_assert(tsk_hdl != NULL);
-	
-	status = task_get_state((*tsk), &state);
-	if (state != TASK_STATE_EXIT) {
-        msg_t *msg = NULL;
-        msg_t *rcv_msg = NULL;
 
-        status = task_alloc_msg(sizeof(*msg), &msg);
-        if (!OSA_ISERROR(status) && msg != NULL) {
-            msg_init(msg);
-            msg_set_payload_ptr(msg, NULL);
-            msg_set_payload_size(msg, 0);
-            msg_set_cmd(msg, TASK_CMD_EXIT);
-            msg_set_flags(msg, MSG_FLAGS_WAIT_ACK);
-            msg_set_status(msg, OSA_SOK);
-
-            status |= task_send_msg((*tsk), (*tsk), msg, MSG_TYPE_CMD);
-            status |= task_recv_msg((*tsk), &rcv_msg, MSG_TYPE_ACK);
-            OSA_assert(rcv_msg == msg);
-
-            task_free_msg(sizeof(*msg), rcv_msg);
-        }
-	}
+    if (tsk_hdl->m_tsk_main != NULL) {
+        status = threadpool_cancel_task(glb_tsklist_obj.m_thdpool, tsk_hdl->m_tsk_token);
+    }
 
     /*
      *  TODO: !!!!
@@ -935,6 +921,56 @@ static void * __task_internal_main(void *userdata)
     }
 	
 	return ((void *)tsk_hdl);
+}
+
+static void * __task_internal_exit(void *userdata)
+{
+    status_t	   status;
+    task_state_t   state;
+    task_node_t  * tsk_node = (task_node_t *)userdata;
+    task_t         tsk = TASK_INVALID_TSK;
+
+    OSA_assert(tsk_node != NULL);
+
+    tsk = (task_t)&tsk_node->m_tsk;
+
+    status = task_get_state(tsk, &state);
+
+#if 0
+    //if ((state & TASK_STATE_BITSMASK) == TASK_STATE_RUNNING) {
+        msg_t *msg = NULL;
+        msg_t *rcv_msg = NULL;
+
+        status = task_alloc_msg(sizeof(*msg), &msg);
+        if (!OSA_ISERROR(status) && msg != NULL) {
+            msg_init(msg);
+            msg_set_payload_ptr(msg, NULL);
+            msg_set_payload_size(msg, 0);
+            msg_set_cmd(msg, TASK_CMD_EXIT);
+            msg_set_flags(msg, MSG_FLAGS_WAIT_ACK);
+            msg_set_status(msg, OSA_SOK);
+
+            status |= task_send_msg(tsk, tsk, msg, MSG_TYPE_CMD);
+            status |= task_recv_msg(tsk, &rcv_msg, MSG_TYPE_ACK);
+            OSA_assert(rcv_msg == msg);
+
+            task_free_msg(sizeof(*msg), rcv_msg);
+        }
+    //}
+    if (state == TASK_STATE_INIT || state == TASK_STATE_PROC) {
+    }
+
+    /*
+     *  0. TASK_STATE_REGISTER
+     *  1. TASK_STATE_INIT
+     *  2. TASK_STATE_PROC
+     *  3. TASK_STATE_EXIT
+     *  4. TASK_STATE_UNREGISTER
+     *
+     */
+#endif
+
+    return ((void *)status);
 }
 
 #if defined(__cplusplus)
