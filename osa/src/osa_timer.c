@@ -90,7 +90,7 @@ struct __osa_event_object_t;
 typedef struct __osa_event_object_t osa_event_object_t;
 struct __osa_event_object_t
 {
-    unsigned int    m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 
     int             m_id;
 

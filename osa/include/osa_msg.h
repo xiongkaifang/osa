@@ -35,6 +35,7 @@
 #include <string.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "dlist.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,7 +89,7 @@ extern "C" {
  */
 struct __std_msg_t; typedef struct __std_msg_t std_msg_t;
 struct __std_msg_t {
-    unsigned int	    m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
     unsigned int	    m_reserved1;
     unsigned int	    m_reserved2;
     void              * m_prm;

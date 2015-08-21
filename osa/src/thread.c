@@ -32,6 +32,7 @@
 #include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "dlist.h"
 #include "std_defs.h"
 #include "thread.h"
 #include "osa_debugger.h"
@@ -68,7 +69,7 @@ extern "C" {
  *  ----------------------------------------------------------------------------
  */
 struct __thread_t {
-    unsigned int        reserved[2];
+    DLIST_ELEMENT_RESERVED;
     pthread_t           thd_id;
     pthread_attr_t      pattrs;
 

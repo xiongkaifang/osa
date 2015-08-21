@@ -80,7 +80,7 @@ extern "C" {
  */
 struct __mailbox_t
 {
-	unsigned int	m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 	unsigned int	m_mbx_id;
 	
     unsigned char   m_names[MSG_TYPE_MAX][32];
@@ -92,7 +92,7 @@ typedef struct __mailbox_t * mailbox_handle;
 struct __mailbox_node_t; typedef struct __mailbox_node_t mailbox_node_t;
 struct __mailbox_node_t
 {
-    unsigned int        m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
     unsigned char       m_name[32];
     struct __mailbox_t  m_mbx;
 };
@@ -100,7 +100,7 @@ struct __mailbox_node_t
 struct __mailbox_system_t; typedef struct __mailbox_system_t mailbox_system_t;
 struct __mailbox_system_t
 {
-    unsigned int        m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
     Bool                m_initialized;
 
     mutex_t             m_mutex;

@@ -77,7 +77,7 @@ extern "C" {
 struct __task_mgr_t; typedef struct __task_mgr_t task_mgr_t;
 struct __task_mgr_t
 {
-    unsigned int    m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
     unsigned int    m_initialized;
     unsigned int    m_msg_id;
     unsigned short  m_msg_cnt;

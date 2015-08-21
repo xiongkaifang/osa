@@ -80,7 +80,7 @@ struct __thdpool_task_t;
 typedef struct __thdpool_task_t thdpool_task_t;
 struct __thdpool_task_t
 {
-    unsigned int            m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
     threadpool_task_state_t m_tsk_state;
     task_data_t             m_tsk_ops;
     void                  * m_userdata;
@@ -88,7 +88,7 @@ struct __thdpool_task_t
 
 struct __threadpool_t
 {
-    unsigned int            m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 
     pthread_mutex_t         m_mutex;
 

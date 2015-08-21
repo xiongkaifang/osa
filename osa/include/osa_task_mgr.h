@@ -83,7 +83,7 @@ struct __task_mgr_prm_t
 struct __task_object_t; typedef struct __task_object_t task_object_t;
 struct __task_object_t
 {
-    unsigned int    m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 
     unsigned char * m_name;
     TASK_MAIN       m_main;

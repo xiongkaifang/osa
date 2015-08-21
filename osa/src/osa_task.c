@@ -93,7 +93,7 @@ struct __task_node_t; typedef struct __task_node_t task_node_t;
 struct __task_t;
 struct __task_t
 {
-	unsigned int	m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 
     unsigned char   m_name[32];
     mailbox_t		m_tsk_mbx;
@@ -112,7 +112,7 @@ struct __task_t
 
 struct __task_node_t
 {
-    unsigned int    m_reserved[2];
+    DLIST_ELEMENT_RESERVED;
 
     unsigned char   m_name[32];
     struct __task_t m_tsk;
