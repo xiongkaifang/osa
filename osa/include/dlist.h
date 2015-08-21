@@ -25,6 +25,9 @@
  *	<author>	    <time>	     <version>	    <desc>
  *  xiong-kaifang   2012-09-14     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-08-21     V1.1         Add macro
+ *                                              'DLIST_ELEMENT_RESERVED'.
+ *
  *  ============================================================================
  */
 
@@ -35,6 +38,7 @@
 #include <stdbool.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "std_defs.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -51,6 +55,8 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define DLIST_ELEMENT_RESERVED Arg \
+    m_reserved[2]
 
 /*
  *  --------------------- Data type definition ---------------------------------
