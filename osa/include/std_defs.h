@@ -27,6 +27,8 @@
  *
  *  xiong-kaifang   2015-08-21     V1.1         Add datatype Arg.
  *
+ *  xiong-kaifang   2015-08-22     V1.2         Add datatype 'HANDLE'.
+ *
  *  ============================================================================
  */
 
@@ -66,6 +68,8 @@ typedef unsigned int    u_int32_t;
 typedef int             (*Fxn)();
 
 typedef void *          Arg;
+
+typedef void *          HANDLE;
 
 /** ----------------------------------------------------------------------------
  *  @Name:          Structure name
