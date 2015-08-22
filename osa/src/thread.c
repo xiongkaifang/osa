@@ -20,15 +20,14 @@
  *	<author>	    <time>	     <version>	    <desc>
  *  xiong-kaifang   2012-09-13     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-08-22     v1.1         Destroy thread attributes
+ *                                              object.
  *
  *  ============================================================================
  */
 
 /*  --------------------- Include system headers ---------------------------- */
 #include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
 #include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
@@ -36,6 +35,8 @@
 #include "dlist.h"
 #include "std_defs.h"
 #include "thread.h"
+#include "osa_mem.h"
+#include "osa_status.h"
 #include "osa_debugger.h"
 
 #if defined(__cplusplus)
@@ -203,7 +204,8 @@ thread_handle   thread_create(Fxn fxn, thread_attrs_t * attrs, ...)
         attrs = &default_thd_attrs;
     }
 
-    thd_hdl = calloc(1, sizeof(*thd_hdl));
+    OSA_memAlloc(sizeof(*thd_hdl), &thd_hdl);
+
     if (thd_hdl != NULL) {
         thd_hdl->pri   = attrs->priority;
 
@@ -259,7 +261,19 @@ void            thread_delete(thread_handle hdl)
             }
         }
 
-        free(hdl);
+        /*
+         *  Modified by: xiong-kaifang.
+         *
+         *  Date       : Aug 22, 2015.
+         *
+         *  Description:
+         *
+         *      Destroy thread attributes object.
+         *
+         */
+        pthread_attr_destroy(&hdl->pattrs);
+
+        OSA_memFree(sizeof(*hdl), hdl);
     }
 
     DBG(DBG_DETAILED, GT_NAME, "thread_delete: Exit\n");
@@ -314,7 +328,7 @@ int             thread_cancel(thread_handle hdl)
 
     if (hdl == NULL) {
         DBG(DBG_ERROR, GT_NAME, "thread_cancel: Invalid arguments\n");
-        return -EINVAL;
+        return OSA_EINVAL;
     }
 
     status = pthread_cancel(hdl->thd_id);
@@ -333,7 +347,7 @@ int             thread_join(thread_handle hdl)
 
     if (hdl == NULL) {
         DBG(DBG_ERROR, GT_NAME, "thread_join: Invalid arguments\n");
-        return -EINVAL;
+        return OSA_EINVAL;
     }
 
     status = pthread_join(hdl->thd_id, NULL);
