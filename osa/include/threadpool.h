@@ -6,31 +6,36 @@
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2012-09-12
  *
- *  @Description:   //	用于详细说明此程序文件完成的主要功能，与其它模块
- *		            //	或函数的接口，输出值，取值范围、含义及参数间的控
- *		            //	制、顺序、独立或依赖等关系
- *		            //
+ *  @Description:   // 用于详细说明此程序文件完成的主要功能，与其它模块
+ *                  // 或函数的接口，输出值，取值范围、含义及参数间的控
+ *                  // 制、顺序、独立或依赖等关系
+ *                  //
  *
- *	                The header file for threadpool(a implementation for thread
- *	                pool).
+ *                  The header file for threadpool(a implementation for thread
+ *                  pool).
  *
- *  @Others:	    //	其它内容说明
+ *  @Others:        // 其它内容说明
  *
- *  @Function List: //	主要函数列表，每条记录就包括函数名及功能简要说明
- *	    1.  ...
- *	    2.  ...
+ *  @Function List: // 主要函数列表，每条记录就包括函数名及功能简要说明
+ *      1.  ...
+ *      2.  ...
  *
- *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
- *	        	    //	时间及修改内容简述
+ *  @History:       // 修改历史记录列表，每条修改记录就包括修改日期、修改
+ *                  // 时间及修改内容简述
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2012-09-12     v1.0	        Write this module.
+ *
+ *  xiong-kaifang   2015-09-18     v1.1         1. Add m_max_linger parameter.
+ *                                              2. Modify threadpool_cancel_task
+ *                                                 prototype.
  *
  *  ============================================================================
  */
 
-#if !defined (THREADPOOL_H_)
-#define THREADPOOL_H_
+#if !defined (__OSA_THREADPOOL_H)
+#define __OSA_THREADPOOL_H
 
 /*  --------------------- Include system headers ---------------------------- */
 
@@ -57,9 +62,9 @@ extern "C" {
 /*
  *  --------------------- Data type definition ---------------------------------
  */
-typedef int threadpool_t;
+typedef HANDLE  threadpool_t;
 
-typedef void * task_token_t;
+typedef HANDLE  task_token_t;
 
 typedef int    (*THREADPOOLSYNC_FXN)(void *hdl, int cmd, void *arg);
 
@@ -68,9 +73,14 @@ typedef int    (*THREADPOOLSYNC_FXN)(void *hdl, int cmd, void *arg);
  *
  *  @Description:   Description of the structure.
  *
- *  @Field:         Field1 member
+ *  @Field:         m_min_thd_nums
+ *                  Minimum number of worker threads.
  *
- *  @Field:         Field2 member
+ *  @Field:         m_max_thd_nums
+ *                  Maximum number of worker threads.
+ *
+ *  @Field:         m_max_linger
+ *                  Maximum seconds before idle workers exit.
  *  ----------------------------------------------------------------------------
  */
 struct __threadpool_params_t;
@@ -79,15 +89,7 @@ struct __threadpool_params_t
 {
     unsigned short  m_min_thd_nums;
     unsigned short  m_max_thd_nums;
-    unsigned int    m_max_tsk_nums;
-};
-
-enum __threadpool_state_t;
-typedef enum __threadpool_state_t threadpool_state_t;
-enum __threadpool_state_t
-{
-    THREADPOOL_STATE_WAIT    = 0x01,
-    THREADPOOL_STATE_DESTROY = 0x02,
+    unsigned int    m_max_linger;
 };
 
 enum __threadpool_task_state_t;
@@ -98,23 +100,6 @@ enum __threadpool_task_state_t
     THREADPOOL_TASK_RUNNING  = 0x02,
     THREADPOOL_TASK_FINISHED = 0x04,
 };
-
-#if 0
-struct __task_operation_t;
-typedef struct __task_operation_t task_operation_t;
-struct __task_operation_t
-{
-    Fxn             m_main;
-    unsigned int    m_args[THREADPOOL_TASK_ARGS_MAX];
-};
-
-struct __task_common_operation_t;
-typedef struct __task_common_operation_t task_common_operation_t;
-struct __task_common_operation_t
-{
-    task_operation_t    m_tsk_ops;
-};
-#endif
 
 struct __task_data_t; typedef struct __task_data_t task_data_t;
 struct __task_data_t
@@ -131,29 +116,29 @@ struct __task_data_t
 
 /** =============================================================================
  *
- *  @Function:	    //	函数名称
+ *  @Function:      // 函数名称
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
@@ -163,7 +148,7 @@ status_t threadpool_add_task(threadpool_t thdp, const task_data_t *tsk_data, tas
 
 status_t threadpool_sync_task(threadpool_t thdp, task_token_t task, int cmd, void *arg);
 
-status_t threadpool_cancel_task(threadpool_t thdp, task_token_t task);
+status_t threadpool_cancel_task(threadpool_t thdp, task_token_t *task);
 
 status_t threadpool_wait(threadpool_t thdp);
 
@@ -175,4 +160,4 @@ status_t threadpool_instruments(threadpool_t thdp);
 }
 #endif  /* defined(__cplusplus) */
 
-#endif  /* if !defined (THREADPOOL_H_) */
+#endif  /* if !defined (__OSA_THREADPOOL_H) */
