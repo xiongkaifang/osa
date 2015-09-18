@@ -9,17 +9,21 @@
  *  @Description:   The implementation of double link list.
  *
  *
- *  @Version:	    v1.0
+ *  @Version:       v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *  @History:	     //	历史修改记录
+ *  @History:       // 历史修改记录
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2012-09-14     v1.0	        Write this module.
  *
+ *  xiont-kaifang   2015-09-16     v1.1         Add two routines:
+ *                                              dlist_prev
+ *                                              dlist_map2
  *
  *  ============================================================================
  */
@@ -92,29 +96,29 @@ static const char * const GT_NAME = "dlist";
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:      Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
@@ -127,29 +131,29 @@ __dlist_count_apply_fxn(dlist_element_t * elem, void * data);
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:      Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
@@ -392,6 +396,32 @@ int  dlist_next(dlist_t *          list,
     return status;
 }
 
+int  dlist_prev(dlist_t *          list,
+                dlist_element_t *  current_element,
+                dlist_element_t ** prev_element)
+{
+    int     status = OSA_SOK;
+
+    DBG(DBG_DETAILED, GT_NAME, "dlist_prev: Enter (list=0x%x, current_element=0x%x "
+            "prev_element=0x%x)\n", list, current_element, prev_element);
+
+    if (list == NULL || current_element == NULL || prev_element == NULL) {
+        status = OSA_EINVAL;
+    } else {
+        (*prev_element) = NULL;
+
+        if (!dlist_is_empty(list)) {
+            if (current_element->prev != (&list->head)) {
+                (*prev_element) = current_element->prev;
+            }
+        }
+    }
+
+    DBG(DBG_DETAILED, GT_NAME, "dlist_next: Exit (list=0x%x, current_element=0x%x "
+            "next_element=0x%x)\n", list, current_element, next_element);
+
+    return status;
+}
 
 int  dlist_search_element(dlist_t *          list,
                           void    *          data,
@@ -413,9 +443,9 @@ int  dlist_search_element(dlist_t *          list,
             status = OSA_ENOENT;
         }
 
-        if (SUCCEEDED(status)) {
+        if (!OSA_ISERROR(status)) {
             status = dlist_first(list, &temp);
-            if (SUCCEEDED(status)) {
+            if (!OSA_ISERROR(status)) {
                 while ((found == false) && (temp != NULL)) {
                     if ((*match_fxn)(temp, data) == true) {
                         found = true;
@@ -458,7 +488,7 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
         status = OSA_EINVAL;
     } else {
         status = dlist_first(list, &temp);
-        while (SUCCEEDED(status) && temp != NULL) {
+        while (!OSA_ISERROR(status) && temp != NULL) {
 
             retval = (*apply_fxn)(temp, data);
             temp1  = temp;
@@ -467,6 +497,31 @@ int  dlist_map(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
     }
 
     DBG(DBG_DETAILED, GT_NAME, "dlist_map: Exit (list=0x%x, status=0x%x\n", list, status);
+
+    return status;
+}
+
+int  dlist_map2(dlist_t * list, DLIST_APPLY_FXN apply_fxn, void * data)
+{
+    int               status = OSA_SOK;
+    int               retval = 0;
+    dlist_element_t * temp   = NULL;
+
+    DBG(DBG_DETAILED, GT_NAME, "dlist_map2: Enter (list=0x%x, apply_fxn=0x%x, "
+            "data=0x%x)\n", list, apply_fxn, data);
+
+    if (list == NULL || apply_fxn == NULL) {
+        status = OSA_EINVAL;
+    } else {
+        status = dlist_get_head(list, &temp);
+        while (!OSA_ISERROR(status) && temp != NULL) {
+
+            retval = (*apply_fxn)(temp, data);
+            status = dlist_get_head(list, &temp);
+        }
+    }
+
+    DBG(DBG_DETAILED, GT_NAME, "dlist_map2: Exit (list=0x%x, status=0x%x\n", list, status);
 
     return status;
 }
@@ -492,9 +547,9 @@ int dlist_count(dlist_t * list, unsigned int * count)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
  *  ============================================================================
  */
