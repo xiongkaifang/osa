@@ -63,7 +63,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define MILLONS                 (1000000)
+#define MILLIONS                (1000000)
 
 #define OSA_TIMER_MIN_SHRESHOLD (1000)
 
@@ -650,7 +650,7 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
         gettimeofday(&now_time, NULL);
         timersub(&now_time, &ptimer->m_sync_time, &ptimer->m_temp_time);
         if (ptimer->m_temp_time.tv_usec < 0) {
-            ptimer->m_temp_time.tv_usec += MILLONS;
+            ptimer->m_temp_time.tv_usec += MILLIONS;
             ptimer->m_temp_time.tv_sec  -= 1;
         }
         if (ptimer->m_temp_time.tv_sec < 0) {
@@ -661,7 +661,7 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
         /* Update synchronized system time for osa timer */
         ptimer->m_sync_time = now_time;
 
-        ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLONS + ptimer->m_temp_time.tv_usec;
+        ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLIONS + ptimer->m_temp_time.tv_usec;
 
         osa_mutex_lock(ptimer->m_mutex);
 
@@ -735,7 +735,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
     gettimeofday(&now_time, NULL);
     timersub(&now_time, &ptimer->m_sync_time, &ptimer->m_temp_time);
     if (ptimer->m_temp_time.tv_usec < 0) {
-        ptimer->m_temp_time.tv_usec += MILLONS;
+        ptimer->m_temp_time.tv_usec += MILLIONS;
         ptimer->m_temp_time.tv_sec  -= 1;
     }
     if (ptimer->m_temp_time.tv_sec < 0) {
@@ -746,7 +746,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
     /* Update synchronized system time for osa timer */
     ptimer->m_sync_time = now_time;
 
-    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLONS + ptimer->m_temp_time.tv_usec;
+    ptimer->m_elapsed_time = ptimer->m_temp_time.tv_sec * MILLIONS + ptimer->m_temp_time.tv_usec;
 
     ptimer->m_resync_done = FALSE;
     status = dlist_map(&ptimer->m_event_list, __osa_timer_event_resync_apply_fxn, (void *)ptimer);
@@ -817,9 +817,9 @@ __osa_timer_nanosleep(unsigned int micro_secs)
     struct timespec delay_time, remain_time;
     int ret;
 
-    delay_time.tv_sec  = micro_secs / MILLONS;
+    delay_time.tv_sec  = micro_secs / MILLIONS;
 
-    delay_time.tv_nsec = (micro_secs % MILLONS) * 1000;
+    delay_time.tv_nsec = (micro_secs % MILLIONS) * 1000;
 
     do {
         ret = nanosleep(&delay_time, &remain_time);
