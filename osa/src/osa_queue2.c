@@ -7,19 +7,23 @@
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2014-04-25
  *
  *  @Description:   The osa queue2(using double link list).
- *	
  *
- *  @Version:	    v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Version:       v1.0
  *
- *  @History:	     //	历史修改记录
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  @History:       //	历史修改记录
+ *
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2014-04-25     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-09-19     v1.1         1. Dynamically create and delete
+ *                                                 queue2 object(queue2_t).
+ *                                              2. Add codes to check arguments.
  *
  *  ============================================================================
  */
@@ -27,8 +31,11 @@
 /*  --------------------- Include system headers ---------------------------- */
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "osa.h"
 #include "osa_queue2.h"
+#include "osa_mutex.h"
 #include "osa_mem.h"
+#include "dlist.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -44,7 +51,11 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define osa_queue2_is_exit(queue)    ((queue)->m_state == OSA_QUEUE2_STATE_EXIT)
+#define queue2_is_exit(queue)   ((queue)->m_state == QUEUE2_STATE_EXIT)
+
+#define queue2_check_arguments(arg)         osa_check_arguments(arg)
+
+#define queue2_check_arguments2(arg1, arg2) osa_check_arguments2(arg1, arg2)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -60,6 +71,21 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
+struct __queue2_t
+{
+    volatile
+    queue2_state_t  m_state;
+
+    osa_mutex_t     m_mutex;
+    osa_cond_t      m_rd_cond;
+#if 0
+    osa_cond_t      m_exit_cond;
+#endif
+
+    dlist_t         m_queue;
+    int             m_exit;
+    int             m_read;
+};
 
 /*
  *  --------------------- Global variable definition ---------------------------
@@ -78,29 +104,29 @@ extern "C" {
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:      Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
@@ -111,193 +137,278 @@ extern "C" {
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:      Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
-status_t osa_queue2_create(osa_queue2_t *queue)
+status_t queue2_create(queue2_t *pque)
 {
-    status_t status = OSA_SOK;
+    status_t             status = OSA_SOK;
+    struct __queue2_t  * pqueue = NULL;
 
-    pthread_mutexattr_t mutex_attr;
-    pthread_condattr_t cond_attr;
+    queue2_check_arguments(pque);
 
-    status |= pthread_mutexattr_init(&mutex_attr);
-    status |= pthread_condattr_init(&cond_attr);
+    (*pque) = INVALID_HANDLE;
 
-    status |= pthread_mutex_init(&queue->m_mutex, &mutex_attr);
-    status |= pthread_cond_init(&queue->m_rd_cond, &cond_attr);
-    status |= pthread_cond_init(&queue->m_wr_cond, &cond_attr);
-
-    pthread_condattr_destroy(&cond_attr);
-    pthread_mutexattr_destroy(&mutex_attr);
-
-    queue->m_state = OSA_QUEUE2_STATE_INIT;
-
-    return status;
-}
-
-status_t osa_queue2_put(osa_queue2_t *queue, unsigned int value, unsigned int timeout)
-{
-    status_t status = OSA_EFAIL;
-
-    pthread_mutex_lock(&queue->m_mutex);
-
-    while (!osa_queue2_is_exit(queue)) {
-        status = dlist_initialize_element((dlist_element_t *)value);
-        status = dlist_put_tail(&queue->m_queue, (dlist_element_t *)value);
-        pthread_cond_signal(&queue->m_rd_cond);
+    status = OSA_memAlloc(sizeof(struct __queue2_t), &pqueue);
+    if (OSA_ISERROR(status) || pqueue == NULL) {
+        return status;
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+    status = osa_mutex_create(&pqueue->m_mutex);
+    if (OSA_ISERROR(status)) {
+        OSA_memFree(sizeof(struct __queue2_t), pqueue);
+        return status;
+    }
+
+    status = osa_cond_create (&pqueue->m_rd_cond);
+#if 0
+    status = osa_cond_create (&pqueue->m_exit_cond);
+#endif
+    if (OSA_ISERROR(status)) {
+        osa_mutex_delete(&pqueue->m_mutex);
+        OSA_memFree(sizeof(struct __queue2_t), pqueue);
+        return status;
+    }
+
+    status |= dlist_init(&pqueue->m_queue);
+
+    pqueue->m_state = QUEUE2_STATE_INIT;
+    pqueue->m_exit  = 0;
+    pqueue->m_read  = 0;
+
+    (*pque) = (queue2_t)pqueue;
 
     return status;
 }
 
-status_t osa_queue2_get(osa_queue2_t *queue, unsigned int *value, unsigned int timeout)
+status_t queue2_put(queue2_t que, void *pvalue , unsigned int timeout)
 {
-    status_t status = OSA_EFAIL;
+    status_t            status = OSA_EFAIL;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
 
-    pthread_mutex_lock(&queue->m_mutex);
+    queue2_check_arguments(pque);
 
-    while (!osa_queue2_is_exit(queue)) {
-        if (!dlist_is_empty(&queue->m_queue)) {
+    osa_mutex_lock  (pque->m_mutex);
 
-            if (value != NULL) {
-                status = dlist_get_head(&queue->m_queue, (dlist_element_t **)value);
+    if (!queue2_is_exit(pque)) {
+        status  = OSA_SOK;
+        status |= dlist_initialize_element((dlist_element_t *)pvalue);
+        status |= dlist_put_tail(&pque->m_queue, (dlist_element_t *)pvalue);
+        status |= osa_cond_signal(pque->m_rd_cond);
+    }
+
+    osa_mutex_unlock(pque->m_mutex);
+
+    return status;
+}
+
+status_t queue2_get(queue2_t que, void **ppvalue, unsigned int timeout)
+{
+    status_t            status = OSA_EFAIL;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
+
+    queue2_check_arguments(pque);
+
+    osa_mutex_lock(pque->m_mutex);
+
+#if 0
+    pque->m_read = 1;
+#endif
+
+    while (!queue2_is_exit(pque)) {
+
+        if (!dlist_is_empty(&pque->m_queue)) {
+
+            if (ppvalue != NULL) {
+                status = dlist_get_head(&pque->m_queue, (dlist_element_t **)ppvalue);
             }
 
             status = OSA_SOK;
-            pthread_cond_signal(&queue->m_wr_cond);
             break;
         } else {
             if (timeout == OSA_TIMEOUT_NONE) {
                 break;
             }
 
-            status |= pthread_cond_wait(&queue->m_rd_cond, &queue->m_mutex);
+            status = osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
         }
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+#if 0
+    if (pque->m_exit) {
+        pque->m_exit = 0;
+        osa_cond_signal(pque->m_exit_cond);
+    }
+
+    pque->m_read = 0;
+#endif
+    osa_mutex_unlock(pque->m_mutex);
 
     return status;
 }
 
-status_t osa_queue2_peek(osa_queue2_t *queue, unsigned int *value)
+status_t queue2_peek(queue2_t que, void **ppvalue)
 {
-    status_t status = OSA_ENOENT;
+    status_t            status = OSA_ENOENT;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
 
-    pthread_mutex_lock(&queue->m_mutex);
+    queue2_check_arguments(pque);
 
-    if (!dlist_is_empty(&queue->m_queue)) {
-        if (value != NULL) {
-            status = dlist_first(&queue->m_queue, (dlist_element_t **)value);
+    osa_mutex_lock  (pque->m_mutex);
+
+    if (!dlist_is_empty(&pque->m_queue)) {
+        if (ppvalue != NULL) {
+            status = dlist_first(&pque->m_queue, (dlist_element_t **)ppvalue);
         }
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+    osa_mutex_unlock(pque->m_mutex);
 
     return status;
 }
 
-status_t osa_queue2_count(osa_queue2_t *queue, unsigned int *count)
+status_t queue2_count(queue2_t que, unsigned int *pcount)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_EFAIL;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
 
-    pthread_mutex_lock(&queue->m_mutex);
+    queue2_check_arguments2(pque, pcount);
 
-    if (count != NULL) {
-        status = dlist_count(&queue->m_queue, count);
+    osa_mutex_lock  (pque->m_mutex);
+
+    status = dlist_count(&pque->m_queue, pcount);
+
+    osa_mutex_unlock(pque->m_mutex);
+
+    return status;
+}
+
+bool_t   queue2_is_empty(queue2_t que)
+{
+    bool_t              is_empty;
+    struct __queue2_t * pque = (struct __queue2_t *)que;
+
+#if 0
+
+    queue2_check_arguments(pque);
+
+#else
+
+    if (pque == NULL) {
+        return FALSE;
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+#endif
 
-    return status;
-}
+    osa_mutex_lock  (pque->m_mutex);
 
-Bool     osa_queue2_is_empty(osa_queue2_t *queue)
-{
-    Bool is_empty;
-
-    pthread_mutex_lock(&queue->m_mutex);
-
-    if (dlist_is_empty(&queue->m_queue)) {
+    if (dlist_is_empty(&pque->m_queue)) {
         is_empty = TRUE;
     } else {
         is_empty = FALSE;
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+    osa_mutex_unlock(pque->m_mutex);
 
     return is_empty;
 }
 
-status_t osa_queue2_exit(osa_queue2_t *queue)
+status_t queue2_exit(queue2_t que)
 {
-    return osa_queue2_set_state(queue, OSA_QUEUE2_STATE_EXIT);
+    return queue2_set_state(que, QUEUE2_STATE_EXIT);
 }
 
-status_t osa_queue2_set_state(osa_queue2_t *queue, osa_queue2_state_t state)
+status_t queue2_set_state(queue2_t que, queue2_state_t state)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
 
-    pthread_mutex_lock(&queue->m_mutex);
+    queue2_check_arguments(pque);
 
-    queue->m_state = state;
+    osa_mutex_lock  (pque->m_mutex);
 
-    if (osa_queue2_is_exit(queue)) {
-        pthread_cond_broadcast(&queue->m_wr_cond);
-        pthread_cond_broadcast(&queue->m_rd_cond);
+    pque->m_state = state;
+
+    if (queue2_is_exit(pque)) {
+        osa_cond_broadcast(pque->m_rd_cond);
     }
 
-    pthread_mutex_unlock(&queue->m_mutex);
+    osa_mutex_unlock(pque->m_mutex);
 
     return status;
 }
 
-status_t osa_queue2_reset(osa_queue2_t *queue)
+status_t queue2_reset(queue2_t que)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
+    struct __queue2_t * pque   = (struct __queue2_t *)que;
 
-    pthread_mutex_lock(&queue->m_mutex);
+    queue2_check_arguments(pque);
 
-    status = dlist_init(&queue->m_queue);
+    osa_mutex_lock  (pque->m_mutex);
 
-    pthread_mutex_unlock(&queue->m_mutex);
+    status = dlist_init(&pque->m_queue);
+
+    osa_mutex_unlock(pque->m_mutex);
 
     return status;
 }
 
-status_t osa_queue2_delete(osa_queue2_t *queue)
+status_t queue2_delete(queue2_t *pque)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
+    struct __queue2_t * pqueue = (struct __queue2_t *)(*pque);
 
-    pthread_cond_destroy(&queue->m_rd_cond);
-    pthread_cond_destroy(&queue->m_wr_cond);
-    pthread_mutex_destroy(&queue->m_mutex);
+    queue2_check_arguments2(pque, pqueue);
+
+    /*
+     *  TODO:
+     */
+#if 0
+    fprintf(stderr, "queue2 get mutex.\n");
+    osa_mutex_lock  (pqueue->m_mutex);
+    pqueue->m_state = QUEUE2_STATE_EXIT;
+    pqueue->m_exit = 1;
+    fprintf(stderr, "queue2 cond broadcast.\n");
+    osa_cond_broadcast(pqueue->m_rd_cond);
+    while (pqueue->m_exit && pqueue->m_read) {
+        osa_cond_wait(pqueue->m_exit_cond, pqueue->m_mutex);
+    }
+    osa_mutex_unlock(pqueue->m_mutex);
+    status |= osa_cond_delete (&pqueue->m_exit_cond);
+
+#endif
+
+    status |= osa_cond_delete (&pqueue->m_rd_cond);
+    status |= osa_mutex_delete(&pqueue->m_mutex);
+    status |= dlist_init(&pqueue->m_queue);
+
+    OSA_memFree(sizeof(struct __queue2_t), pqueue);
+
+    (*pque) = INVALID_HANDLE;
 
     return status;
 }
@@ -308,9 +419,9 @@ status_t osa_queue2_delete(osa_queue2_t *queue)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   //  函数功能、性能等的描述
  *
  *  ============================================================================
  */
