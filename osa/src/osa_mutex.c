@@ -285,8 +285,8 @@ status_t osa_cond_timedwait(osa_cond_t cond, osa_mutex_t mutex, unsigned int tim
     abstime.tv_sec  += timeout / 1000;
     abstime.tv_nsec += (timeout % 1000) * MILLIONS;
     if (abstime.tv_nsec >= BILLIONS) {
-        abstime.tv_sec  -= BILLIONS;
-        abstime.tv_nsec += 1;
+        abstime.tv_sec  += 1;
+        abstime.tv_nsec -= BILLIONS;
     }
 #endif
 

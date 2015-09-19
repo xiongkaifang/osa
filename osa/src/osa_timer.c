@@ -17,9 +17,9 @@
  *
  *  @History:       // 历史修改记录
  *
- *  xiong-kaifang   2013-09-03     v1.0	        Write this module.
- *
  *  <author>        <time>       <version>      <description>
+ *
+ *  xiong-kaifang   2013-09-03     v1.0	        Write this module.
  *
  *  xiong-kaifang   2013-12-12     v1.1         Use microsecond to caculate
  *                                              elapesed time.
