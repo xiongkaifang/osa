@@ -7,28 +7,31 @@
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-05
  *
  *  @Description:   The osa mailbox.
- *	
  *
- *  @Version:	    v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Version:       v1.0
  *
- *  @History:	     //	历史修改记录
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  @History:       // 历史修改记录
+ *
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2013-04-05     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-09-19     v1.1         1. Add codes to check arguments.
+ *                                              1. Misc codes updated.
  *
  *  ============================================================================
  */
 
 /*  --------------------- Include system headers ---------------------------- */
-#include <stdio.h>
 #include <string.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "osa.h"
 #include "osa_mailbox.h"
 #include "osa_msgq.h"
 #include "osa_mem.h"
@@ -49,21 +52,13 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
+#define MBX_IS_VALID(mbx)                   (HANDLE_IS_VALID(mbx))
+
 #define MAILBOX_SYSTEM_MBX_NUMS             (10)
 
-#define MBX_SYS_CRITICAL_ENTER()            \
-    do {                                    \
-        mutex_lock(&glb_mbx_sys_mutex);     \
-    } while (0)
+#define mbx_check_arguments(arg)            osa_check_arguments(arg)
+#define mbx_check_arguments2(arg1, arg2)    osa_check_arguments2(arg1, arg2)
 
-#define MBX_SYS_CRITICAL_LEAVE()            \
-    do {                                    \
-        mutex_unlock(&glb_mbx_sys_mutex);   \
-    } while (0)
-
-#define MAILBOX_GET_MBX_HANDLE(mbx)         ((mailbox_handle)mbx)
-
-#define MAILBOX_IS_INVALID_MBX(mbx)         (MAILBOX_INVALID_MBX == (mbx))
 /*
  *  --------------------- Structure definition ---------------------------------
  */
@@ -81,38 +76,23 @@ extern "C" {
 struct __mailbox_t
 {
     DLIST_ELEMENT_RESERVED;
-	unsigned int	m_mbx_id;
-	
+
+    unsigned char   m_name[32];
+    unsigned int    m_mbx_id;
     unsigned char   m_names[MSG_TYPE_MAX][32];
 	msgq_t			m_msgqs[MSG_TYPE_MAX];
 };
 
-typedef struct __mailbox_t * mailbox_handle;
-
-struct __mailbox_node_t; typedef struct __mailbox_node_t mailbox_node_t;
-struct __mailbox_node_t
-{
-    DLIST_ELEMENT_RESERVED;
-    unsigned char       m_name[32];
-    struct __mailbox_t  m_mbx;
-};
-
-struct __mailbox_system_t; typedef struct __mailbox_system_t mailbox_system_t;
 struct __mailbox_system_t
 {
     DLIST_ELEMENT_RESERVED;
-    Bool                m_initialized;
 
-    mutex_t             m_mutex;
-    unsigned int        m_mbx_id;
-    unsigned int        m_mbx_cnt;
-    unsigned int        m_mbx_used;
-    mailbox_node_t    * m_mbxs;
-    dlist_t             m_busy_list;
-    dlist_t             m_free_list;
+    bool_t          m_initialized;
+
+    osa_mutex_t     m_mutex;
+    unsigned int    m_mbx_id;
+    dlist_t         m_list;
 };
-
-typedef struct __mailbox_system_t * mailbox_system_handle;
 
 /*
  *  --------------------- Global variable definition ---------------------------
@@ -124,17 +104,15 @@ typedef struct __mailbox_system_t * mailbox_system_handle;
  *  @Description:   Description of the variable.
  * -----------------------------------------------------------------------------
  */
-static mailbox_system_prm_t glb_mbx_sys_prm  = {
+static mailbox_system_prm_t      glb_mbx_sys_prm  = {
     .m_mbx_cnt    = MAILBOX_SYSTEM_MBX_NUMS,
 };
 
-static mailbox_system_t glb_mbx_sys_obj = {
+static struct __mailbox_system_t glb_mbx_sys_obj = {
     .m_initialized = FALSE,
 };
 
 static unsigned int glb_cur_init = 0;
-
-OSA_DECLARE_AND_INIT_MUTEX(glb_mbx_sys_mutex);
 
 /*
  *  --------------------- Local function forward declaration -------------------
@@ -142,42 +120,44 @@ OSA_DECLARE_AND_INIT_MUTEX(glb_mbx_sys_mutex);
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:     Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
+static unsigned int
+__mailbox_system_get_mbx_id(struct __mailbox_system_t *pmbxs);
+
 static status_t
-mailbox_init(mailbox_handle hdl, const char * name, unsigned int mbx_id);
+__mailbox_system_internal_find(struct __mailbox_system_t *pmbxs,
+        const char *name, struct __mailbox_t **ppmbx);
 
-static status_t mailbox_deinit(mailbox_handle hdl);
+static status_t
+__mailbox_system_register(const char *name, struct __mailbox_t *pmbx);
 
-static unsigned int mailbox_system_get_mbx_id(mailbox_system_handle hdl);
-
-static status_t 
-mailbox_system_internal_find(mailbox_system_t *mbx_sys,
-        const char *name, mailbox_node_t **node);
+static status_t
+__mailbox_system_unregister(const char *name, struct __mailbox_t *pmbx);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -185,88 +165,170 @@ mailbox_system_internal_find(mailbox_system_t *mbx_sys,
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:    Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
+status_t mailbox_system_init(mailbox_system_prm_t *prm)
+{
+    status_t                    status = OSA_SOK;
+    struct __mailbox_system_t * pmbxs  = &glb_mbx_sys_obj;
+
+    if (glb_cur_init++ == 0) {
+
+        status = osa_mutex_create(&pmbxs->m_mutex);
+        if (OSA_ISERROR(status)) {
+            return status;
+        }
+
+        pmbxs->m_mbx_id = 0;
+
+        status |= dlist_init(&pmbxs->m_list);
+
+        pmbxs->m_initialized = TRUE;
+    }
+
+    return status;
+}
+
+status_t mailbox_system_find(const char *name, mailbox_t *mbx)
+{
+    struct __mailbox_system_t * pmbxs  = &glb_mbx_sys_obj;
+
+    mbx_check_arguments2(name, mbx);
+
+    return __mailbox_system_internal_find(pmbxs, name, (struct __mailbox_t **)mbx);
+}
+
+status_t mailbox_system_deinit(void)
+{
+    status_t                    status = OSA_SOK;
+    struct __mailbox_system_t * pmbxs  = &glb_mbx_sys_obj;
+
+    if (--glb_cur_init == 0) {
+
+        status |= osa_mutex_delete(&pmbxs->m_mutex);
+        status |= dlist_init(&pmbxs->m_list);
+
+        pmbxs->m_initialized = FALSE;
+    }
+
+    return status;
+}
+
 status_t mailbox_open(mailbox_t *mbx, mailbox_params_t *prm)
 {
-    return mailbox_system_register(prm->m_name, mbx);
+    int                  i;
+    status_t             status = OSA_SOK;
+    struct __mailbox_t * pmbx   = NULL;
+
+    mbx_check_arguments2(mbx, prm);
+
+    (*mbx) = INVALID_HANDLE;
+
+    status = OSA_memAlloc(sizeof(struct __mailbox_t), &pmbx);
+    if (OSA_ISERROR(status) || pmbx == NULL) {
+        return status;
+    }
+
+    pmbx->m_mbx_id = __mailbox_system_get_mbx_id(&glb_mbx_sys_obj);
+
+    for (i = 0; i < OSA_ARRAYSIZE(pmbx->m_msgqs); i++) {
+        pmbx->m_msgqs[i] = INVALID_HANDLE;
+    }
+
+    for (i = 0; i < OSA_ARRAYSIZE(pmbx->m_msgqs); i++) {
+        snprintf(pmbx->m_names[i], sizeof(pmbx->m_names[i]) - 1,
+                "%s%02d:%s", prm->m_name,
+                pmbx->m_mbx_id, i == MAILBOX_MSGQ_CMD ? "CMD" : "ACK");
+
+        status = msgq_open(pmbx->m_names[i], &pmbx->m_msgqs[i], NULL);
+
+        if (OSA_ISERROR(status)) {
+
+            for (i = 0; i < OSA_ARRAYSIZE(pmbx->m_msgqs); i++) {
+                msgq_close(pmbx->m_names[i], &pmbx->m_msgqs[i]);
+            }
+            return status;
+        }
+    }
+
+    snprintf(pmbx->m_name, sizeof(pmbx->m_name) - 1, "%s", prm->m_name);
+
+    status = __mailbox_system_register(pmbx->m_name, pmbx);
+
+    (*mbx) = (mailbox_t)pmbx;
+
+    return status;
 }
 
 status_t mailbox_recv_msg(mailbox_t mbx, msg_t **msg, msg_type_t msgt, unsigned int timeout)
 {
-	status_t status = OSA_SOK;
-	mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
-	
-	OSA_assert(mbx_hdl != NULL && msg != NULL);
-	
-	status = msgq_recv(mbx_hdl->m_msgqs[msgt], msg, timeout);
-	
-	return status;
+    struct __mailbox_t * pmbx = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments2(pmbx, msg);
+
+    return msgq_recv(pmbx->m_msgqs[msgt], msg, timeout);
 }
 
 status_t mailbox_send_msg(mailbox_t to, mailbox_t frm, msg_t *msg, msg_type_t msgt, unsigned int timeout)
 {
-	status_t status = OSA_SOK;
-	mailbox_handle to_hdl = MAILBOX_GET_MBX_HANDLE(to);
-	
-	OSA_assert(to_hdl != NULL && msg != NULL);
-	
-	if (MSG_TYPE_CMD == msgt) {
-		msg_set_src(msg, to_hdl->m_msgqs[MSG_TYPE_ACK]);
-	}
-	
+    struct __mailbox_t * pmbx = (struct __mailbox_t *)to;
+
+    mbx_check_arguments2(pmbx, msg);
+
 	msg->u.m_mbx_msg.m_to  = to;
 	msg->u.m_mbx_msg.m_frm = frm;
-	status = msgq_send(to_hdl->m_msgqs[msgt], msg, timeout);
 
-	return status;
+    return msgq_send(pmbx->m_msgqs[msgt], msg, timeout);
 }
 
 status_t mailbox_broadcast(mailbox_t mbx_lists[], mailbox_t frm, msg_t *msg)
 {
-	int i = 0;
-	int mbx_cnt = 0;
-	status_t status = OSA_SOK;
-    msg_t *new_msg = NULL;
-	mailbox_handle mbx_hdl[MAILBOX_MBX_MAX];
-	
-	OSA_assert(mbx_lists != NULL && msg != NULL);
-	
-	for (i = 0; !MAILBOX_IS_INVALID_MBX(mbx_lists[i]); i++) {
-		mbx_cnt++;
-		mbx_hdl[i] = (mailbox_handle)mbx_lists[i];
-	}
-	
-	for (i = 0; i < mbx_cnt; i++) {
+    int        i;
+    msg_t    * pmsg   = NULL;
+    status_t   status = OSA_SOK;
 
-		status = msgq_send(mbx_hdl[i]->m_msgqs[MSG_TYPE_CMD], msg, OSA_TIMEOUT_NONE);
-	}
-	
-	return status;
+    mbx_check_arguments(msg);
+
+    for (i = 0; MBX_IS_VALID(mbx_lists[i]); i++) {
+
+        status = mailbox_alloc_msg(sizeof(msg_t), &pmsg);
+        if (OSA_ISERROR(status)|| pmsg == NULL) {
+            break;
+        }
+
+        *pmsg = *msg;
+
+        status = mailbox_send_msg(mbx_lists[i], frm, pmsg, MSG_TYPE_CMD, OSA_TIMEOUT_NONE);
+        if (OSA_ISERROR(status)) {
+            mailbox_free_msg(sizeof(msg_t), pmsg);
+        }
+    }
+
+    return status;
 }
 
 status_t mailbox_alloc_msg(unsigned short size, msg_t **msg)
@@ -281,109 +343,80 @@ status_t mailbox_free_msg (unsigned short size, msg_t *msg)
 
 status_t mailbox_wait_msg(mailbox_t mbx, msg_t **msg, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
-	
-	OSA_assert(mbx_hdl != NULL && msg != NULL);
-	
-	status = msgq_recv(mbx_hdl->m_msgqs[msgt], msg, OSA_TIMEOUT_FOREVER);
-	OSA_assert(OSA_SOK == status);
-	
-	return status;
+    struct __mailbox_t * pmbx = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments2(pmbx, msg);
+
+	return msgq_recv(pmbx->m_msgqs[msgt], msg, OSA_TIMEOUT_FOREVER);
 }
 
 status_t mailbox_check_msg(mailbox_t mbx, msg_t **msg, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
-	
-	OSA_assert(mbx_hdl != NULL && msg != NULL);
-	
-	status = msgq_recv(mbx_hdl->m_msgqs[msgt], msg, OSA_TIMEOUT_NONE);
-	
-	return status;
+    struct __mailbox_t * pmbx = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments2(pmbx, msg);
+
+	return msgq_recv(pmbx->m_msgqs[msgt], msg, OSA_TIMEOUT_NONE);
 }
 
 status_t mailbox_get_msg_count(mailbox_t mbx, unsigned int *cnt, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
-	
-	OSA_assert(mbx_hdl != NULL && cnt != NULL);
-	
-	status = msgq_count(mbx_hdl->m_msgqs[msgt], cnt);
-	
-	return status;
+    struct __mailbox_t * pmbx = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments2(pmbx, cnt);
+
+	return msgq_count(pmbx->m_msgqs[msgt], cnt);
 }
 
 status_t mailbox_wait_cmd(mailbox_t mbx, msg_t **msg, unsigned short cmd)
 {
-	status_t status = OSA_EFAIL;
-	mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
-	
-	OSA_assert(mbx_hdl != NULL && msg != NULL);
-	
+	status_t             status = OSA_EFAIL;
+    struct __mailbox_t * pmbx   = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments2(pmbx, msg);
+
 	do {
-		status = msgq_recv(mbx_hdl->m_msgqs[MAILBOX_MSGQ_CMD],
-						   msg, OSA_TIMEOUT_FOREVER);
-		OSA_assert(OSA_SOK == status);
-		
-		if (msg_get_cmd(*msg) == cmd) {
-			status = OSA_SOK;
+		status = msgq_recv(pmbx->m_msgqs[MAILBOX_MSGQ_CMD], msg, OSA_TIMEOUT_FOREVER);
+
+		if (OSA_ISERROR(status) || (msg_get_cmd(*msg) == cmd)) {
 			break;
 		}
-		
-		status |= msgq_send(mbx_hdl->m_msgqs[MAILBOX_MSGQ_CMD], *msg, OSA_TIMEOUT_NONE);
+
+		status = msgq_send(pmbx->m_msgqs[MAILBOX_MSGQ_CMD], *msg, OSA_TIMEOUT_NONE);
 
 	} while (1);
-	
-	return status;
+
+    return status;
 }
 
 status_t mailbox_wait_ack(mailbox_t mbx, msg_t **msg, unsigned int id)
 {
-    status_t status = OSA_EFAIL;
-    mailbox_handle mbx_hdl = MAILBOX_GET_MBX_HANDLE(mbx);
+	status_t             status = OSA_EFAIL;
+    struct __mailbox_t * pmbx   = (struct __mailbox_t *)mbx;
 
-    OSA_assert(mbx_hdl != NULL && msg != NULL);
+    mbx_check_arguments2(pmbx, msg);
 
-    do {
-        status = msgq_recv(mbx_hdl->m_msgqs[MAILBOX_MSGQ_ACK],
-                msg, OSA_TIMEOUT_FOREVER);
-        OSA_assert(OSA_SOK == status);
+	do {
+		status = msgq_recv(pmbx->m_msgqs[MAILBOX_MSGQ_ACK], msg, OSA_TIMEOUT_FOREVER);
 
-        if (msg_get_msg_id(*msg) == id) {
-            status = OSA_SOK;
-            break;
-        }
+		if (OSA_ISERROR(status) || (msg_get_msg_id(*msg) == id)) {
+			break;
+		}
 
-        status |= msgq_send(mbx_hdl->m_msgqs[MAILBOX_MSGQ_ACK], *msg, OSA_TIMEOUT_NONE);
+		status = msgq_send(pmbx->m_msgqs[MAILBOX_MSGQ_ACK], *msg, OSA_TIMEOUT_NONE);
 
-    } while (1);
+	} while (1);
 
     return status;
 }
 
-#if 0
-status_t mailbox_ack_msg(mailbox_t to, mailbox_t frm, mailbox_msg_t *msg)
-{
-    status_t status = OSA_SOK;
-    task_handle hdl = NULL;
-
-    msg->m_to  = to;
-    msg->m_frm = frm;
-
-    hdl = (task_handle)msg->m_to;
-    status |= msgq_send(hdl->m_ack_msgq, (msgq_msg_t *)msg, OSA_TIMEOUT_FOREVER);
-
-    return status;
-}
-#endif
- 
 status_t mailbox_flush(mailbox_t mbx)
 {
-    msg_t *msg = NULL;
-    status_t status = OSA_SOK;
+    msg_t              * msg    = NULL;
+	status_t             status = OSA_EFAIL;
+    struct __mailbox_t * pmbx   = (struct __mailbox_t *)mbx;
+
+    mbx_check_arguments(pmbx);
 
     do {
         status = mailbox_check_msg(mbx, &msg, MSG_TYPE_CMD);
@@ -399,179 +432,26 @@ status_t mailbox_flush(mailbox_t mbx)
         }
     } while (!OSA_ISERROR(status));
 
-    return status = OSA_SOK;
-}
-
-status_t mailbox_close(mailbox_t mbx, mailbox_params_t *prm)
-{
-    return mailbox_system_unregister(prm->m_name, mbx);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-/* mailbox system */
-status_t mailbox_system_init(mailbox_system_prm_t *prm)
-{
-    int i;
-    Bool need_init = FALSE;
-    status_t status = OSA_SOK;
-    mailbox_system_handle hdl = &glb_mbx_sys_obj;
-
-    MBX_SYS_CRITICAL_ENTER();
-    if (glb_cur_init++ == 0) {
-        need_init = TRUE;
-    }
-    MBX_SYS_CRITICAL_LEAVE();
-
-    if (!need_init) {
-        return status;
-    }
-
-    OSA_assert(TRUE == need_init);
-
-    if (prm == NULL) {
-        prm = &glb_mbx_sys_prm;
-    }
-
-    hdl->m_mbx_id  = 1;
-    hdl->m_mbx_cnt = prm->m_mbx_cnt;
-    status = OSA_memAlloc(sizeof(mailbox_node_t) * hdl->m_mbx_cnt, (void **)&hdl->m_mbxs);
-    if (OSA_ISERROR(status) || hdl->m_mbxs == NULL) {
-        return OSA_EMEM;
-    }
-    hdl->m_mbx_used = 0;
-
-    status |= mutex_create(&hdl->m_mutex);
-    status |= dlist_init(&hdl->m_busy_list);
-    status |= dlist_init(&hdl->m_free_list);
-    OSA_assert(OSA_SOK == status);
-
-    for (i = 0; i < hdl->m_mbx_cnt; i++) {
-		status |= mailbox_init(&(hdl->m_mbxs + i)->m_mbx, "MBX",
-                    mailbox_system_get_mbx_id(hdl));
-        status |= dlist_initialize_element((dlist_element_t *)&hdl->m_mbxs[i]);
-        status |= dlist_put_tail(&hdl->m_free_list, (dlist_element_t *)&hdl->m_mbxs[i]);
-        OSA_assert(OSA_SOK == status);
-    }
-
-    hdl->m_initialized = TRUE;
-
     return status;
 }
 
-status_t mailbox_system_register(const char *name, mailbox_t *mbx)
+status_t mailbox_close(mailbox_t *mbx, mailbox_params_t *prm)
 {
-    status_t status = OSA_SOK;
-    mailbox_node_t *mbx_node;
-    mailbox_system_handle hdl = &glb_mbx_sys_obj;
+    int                  i;
+	status_t             status = OSA_SOK;
+    struct __mailbox_t * pmbx   = (struct __mailbox_t *)(*mbx);
 
-    OSA_assert(hdl->m_initialized == TRUE);
+    mbx_check_arguments2(mbx, pmbx);
 
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_mbx_used < hdl->m_mbx_cnt) {
+    status |= __mailbox_system_unregister(pmbx->m_name, pmbx);
 
-        status |= dlist_get_head(&hdl->m_free_list, (dlist_element_t **)&mbx_node);
-
-        snprintf(mbx_node->m_name, sizeof(mbx_node->m_name) - 1, "%s", name);
-
-        (*mbx) = (mailbox_t)(&mbx_node->m_mbx);
-        
-        status |= dlist_put_tail(&hdl->m_busy_list, (dlist_element_t *)mbx_node);
-        hdl->m_mbx_used++;
-    } else {
-        status = OSA_ENOENT;
+    for (i = 0; i < OSA_ARRAYSIZE(pmbx->m_msgqs); i++) {
+        status |= msgq_close(pmbx->m_names[i], &pmbx->m_msgqs[i]);
     }
 
-    mutex_unlock(&hdl->m_mutex);
+    status |= OSA_memFree(sizeof(struct __mailbox_t), pmbx);
 
-    return status;
-
-}
-
-status_t mailbox_system_find(const char *name, mailbox_t *mbx)
-{
-    status_t status = OSA_ENOENT;
-    mailbox_node_t *mbx_node  = NULL;
-    mailbox_system_handle hdl = &glb_mbx_sys_obj;
-
-    OSA_assert(hdl->m_initialized == TRUE);
-
-    (*mbx) =(mailbox_t)MAILBOX_INVALID_MBX;
-
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_mbx_used > 0) {
-
-        status = mailbox_system_internal_find(hdl, name, &mbx_node);
-        if (!OSA_ISERROR(status)) {
-            (*mbx) = (mailbox_t)&mbx_node->m_mbx;
-        }
-    } 
-
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-}
-
-status_t mailbox_system_unregister(const char *name, mailbox_t mbx)
-{
-    status_t status = OSA_ENOENT;
-    mailbox_node_t *mbx_node  = NULL;
-    mailbox_system_handle hdl = &glb_mbx_sys_obj;
-
-    OSA_assert(hdl->m_initialized == TRUE);
-
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_mbx_used > 0) {
-
-        status = mailbox_system_internal_find(hdl, name, &mbx_node);
-        if (!OSA_ISERROR(status)) {
-            status |= dlist_remove_element(&hdl->m_busy_list, (dlist_element_t *)mbx_node);
-            OSA_assert((&mbx_node->m_mbx) == (mailbox_handle)mbx);
-            status |= dlist_put_tail(&hdl->m_free_list, (dlist_element_t *)mbx_node);
-            hdl->m_mbx_used--;
-        }
-    } 
-
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-}
-
-status_t mailbox_system_deinit(void)
-{
-	int i;
-    Bool need_deinit = FALSE;
-    status_t status = OSA_SOK;
-    mailbox_system_handle hdl = &glb_mbx_sys_obj;
-
-    OSA_assert(hdl->m_initialized == TRUE);
-
-    MBX_SYS_CRITICAL_ENTER();
-    if (--glb_cur_init == 0) {
-        need_deinit = TRUE;
-    }
-    MBX_SYS_CRITICAL_LEAVE();
-
-    if (!need_deinit) {
-        return status;
-    }
-
-    OSA_assert(TRUE == need_deinit);
-
-	for (i = 0; i < hdl->m_mbx_cnt; i++) {
-		status |= mailbox_deinit(&(hdl->m_mbxs + i)->m_mbx);
-	}
-	
-    status |= mutex_delete(&hdl->m_mutex);
-
-    if (hdl->m_mbxs != NULL) {
-        OSA_memFree(sizeof(mailbox_node_t) * hdl->m_mbx_cnt, hdl->m_mbxs);
-        hdl->m_mbxs = NULL;
-    }
-    hdl->m_initialized = FALSE;
+    (*mbx) = INVALID_HANDLE;
 
     return status;
 }
@@ -582,54 +462,22 @@ status_t mailbox_system_deinit(void)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
  *  ============================================================================
  */
-static status_t
-mailbox_init(mailbox_handle hdl, const char * name, unsigned int mbx_id)
-{
-    int i;
-    status_t status = OSA_SOK;
-
-    hdl->m_mbx_id = mbx_id;
-
-    for (i = 0; i < OSA_ARRAYSIZE(hdl->m_msgqs); i++) {
-        snprintf(hdl->m_names[i], sizeof(hdl->m_names[i]) - 1, 
-                "%s:%02d%s", name,
-                mbx_id, i == MAILBOX_MSGQ_CMD ? "CMD" : "ACK");
-
-        status = msgq_mgr_register(hdl->m_names[i], &hdl->m_msgqs[i], NULL);
-    }
-
-    return status;
-}
-
-static status_t mailbox_deinit(mailbox_handle hdl)
-{
-    int i;
-    status_t status = OSA_SOK;
-
-    for (i = 0; i < OSA_ARRAYSIZE(hdl->m_msgqs); i++) {
-
-        status = msgq_mgr_unregister(hdl->m_names[i], hdl->m_msgqs[i]);
-    }
-
-    return status;
-}
-
 static unsigned int
-mailbox_system_get_mbx_id(mailbox_system_handle hdl)
+__mailbox_system_get_mbx_id(struct __mailbox_system_t *pmbxs)
 {
     unsigned int id;
 
-    mutex_lock(&hdl->m_mutex);
+    osa_mutex_lock  (pmbxs->m_mutex);
 
-    id = hdl->m_mbx_id++;
+    id = pmbxs->m_mbx_id++;
 
-    mutex_unlock(&hdl->m_mutex);
+    osa_mutex_unlock(pmbxs->m_mutex);
 
     return id;
 }
@@ -637,24 +485,58 @@ mailbox_system_get_mbx_id(mailbox_system_handle hdl)
 static bool
 mailbox_system_find_match_fxn(dlist_element_t *elem, void *data)
 {
-    return (strncmp(((mailbox_node_t *)elem)->m_name,
+    return (strncmp(((struct __mailbox_t *)elem)->m_name,
                     (const char *)data,
-                    sizeof(((mailbox_node_t *)elem)->m_name)) == 0);
+                    sizeof(((struct __mailbox_t *)elem)->m_name)) == 0);
 }
 
 static status_t
-mailbox_system_internal_find(mailbox_system_t *mbx_sys, const char *name, mailbox_node_t **node)
+__mailbox_system_internal_find(struct __mailbox_system_t *pmbxs,
+        const char *name, struct __mailbox_t **ppmbx)
 {
     status_t status = OSA_ENOENT;
 
-    (*node) = NULL;
+    (*ppmbx) = NULL;
 
-    status = dlist_search_element(&mbx_sys->m_busy_list, (void *)name,
-                                  (dlist_element_t **)node, mailbox_system_find_match_fxn);
+    status = dlist_search_element(&pmbxs->m_list, (void *)name,
+                                  (dlist_element_t **)ppmbx, mailbox_system_find_match_fxn);
 
     if (!OSA_ISERROR(status)) {
         status = OSA_SOK;
     }
+
+    return status;
+}
+
+static status_t
+__mailbox_system_register(const char *name, struct __mailbox_t *pmbx)
+{
+    status_t                    status = OSA_SOK;
+    struct __mailbox_system_t * pmbxs  = &glb_mbx_sys_obj;
+
+    osa_mutex_lock  (pmbxs->m_mutex);
+
+    status |= dlist_put_tail(&pmbxs->m_list, (dlist_element_t *)pmbx);
+
+    osa_mutex_unlock(pmbxs->m_mutex);
+
+    return status;
+
+
+    return status;
+}
+
+static status_t
+__mailbox_system_unregister(const char *name, struct __mailbox_t *pmbx)
+{
+    status_t                    status = OSA_SOK;
+    struct __mailbox_system_t * pmbxs  = &glb_mbx_sys_obj;
+
+    osa_mutex_lock  (pmbxs->m_mutex);
+
+    status |= dlist_remove_element(&pmbxs->m_list, (dlist_element_t *)pmbx);
+
+    osa_mutex_unlock(pmbxs->m_mutex);
 
     return status;
 }
