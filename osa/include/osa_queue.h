@@ -6,24 +6,27 @@
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-04
  *
- *  @Description:   //	用于详细说明此程序文件完成的主要功能，与其它模块
- *		            //	或函数的接口，输出值，取值范围、含义及参数间的控
- *		            //	制、顺序、独立或依赖等关系
- *		            //
+ *  @Description:   // 用于详细说明此程序文件完成的主要功能，与其它模块
+ *                  // 或函数的接口，输出值，取值范围、含义及参数间的控
+ *                  // 制、顺序、独立或依赖等关系
+ *                  //
  *
- *	                The header file for osa queue(using dynamic array).
+ *                  The header file for osa queue(using dynamic array).
  *
- *  @Others:	    //	其它内容说明
+ *  @Others:        // 其它内容说明
  *
- *  @Function List: //	主要函数列表，每条记录就包括函数名及功能简要说明
- *	    1.  ...
- *	    2.  ...
+ *  @Function List: // 主要函数列表，每条记录就包括函数名及功能简要说明
+ *      1.  ...
+ *      2.  ...
  *
- *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
- *	        	    //	时间及修改内容简述
+ *  @History:       // 修改历史记录列表，每条修改记录就包括修改日期、修改
+ *                  // 时间及修改内容简述
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  <author>        <time>       <version>      <description>
  *  xiong-kaifang   2013-04-04     v1.0	        Write this module.
+ *
+ *  xiong-kaifang   2015-09-19     v1.1         1. Using opaque type for queue.
+ *                                              2. Tweak queue's prototype.
  *
  *  ============================================================================
  */
@@ -32,11 +35,9 @@
 #define __OSA_QUEUE_H
 
 /*  --------------------- Include system headers ---------------------------- */
-#include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
-#include "osa.h"
-#include "osa_mutex.h"
+#include "std_defs.h"
 #include "osa_status.h"
 
 #if defined(__cplusplus)
@@ -56,8 +57,8 @@ extern "C" {
 enum __queue_state_t; typedef enum __queue_state_t queue_state_t;
 enum __queue_state_t
 {
-    OSA_QUEUE_STATE_INIT = 0,
-    OSA_QUEUE_STATE_EXIT = 1,
+    QUEUE_STATE_INIT = 0,
+    QUEUE_STATE_EXIT = 1,
 };
 
 /*
@@ -74,22 +75,7 @@ enum __queue_state_t
  *  @Field:         Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __queue_t; typedef struct __queue_t queue_t;
-struct __queue_t
-{
-	unsigned int	m_rd_idx;
-	unsigned int	m_wr_idx;
-	unsigned int	m_len;
-	unsigned int	m_count;
-	unsigned int  * m_queue;
-	
-	//mutex_t			m_mutex;
-    pthread_mutex_t m_mutex;
-	pthread_cond_t	m_rd_cond;
-	pthread_cond_t	m_wr_cond;
-    volatile
-    unsigned int    m_state;
-};
+typedef HANDLE      queue_t;
 
 /*
  *  --------------------- Public function declaration --------------------------
@@ -97,41 +83,41 @@ struct __queue_t
 
 /** =============================================================================
  *
- *  @Function:	    //	函数名称
+ *  @Function:      // 函数名称
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
-status_t queue_create(queue_t *queue, unsigned int max_len);
-status_t queue_put(queue_t *queue, unsigned int value, unsigned int timeout);
-status_t queue_get(queue_t *queue, unsigned int *value, unsigned int timeout);
-status_t queue_peek(queue_t *queue, unsigned int *value);
-status_t queue_count(queue_t *queue, unsigned int *count);
-Bool     queue_is_empty(queue_t *queue);
-status_t queue_exit(queue_t *queue);
-status_t queue_set_state(queue_t *queue, queue_state_t state);
-status_t queue_reset(queue_t *queue);
+status_t queue_create(queue_t *pque, unsigned int max_len);
+status_t queue_put(queue_t que, unsigned long value, unsigned int timeout);
+status_t queue_get(queue_t que, unsigned long *pvalue, unsigned int timeout);
+status_t queue_peek(queue_t que, unsigned long *pvalue);
+status_t queue_count(queue_t que, unsigned int *pcount);
+bool_t   queue_is_empty(queue_t que);
+status_t queue_exit(queue_t que);
+status_t queue_set_state(queue_t que, queue_state_t state);
+status_t queue_reset(queue_t que);
 status_t queue_delete(queue_t *queue);
 
 #if defined(__cplusplus)
