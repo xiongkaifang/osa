@@ -7,20 +7,32 @@
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-05
  *
  *  @Description:   The osa task.
- *	
  *
- *  @Version:	    v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Version:       v1.0
  *
- *  @History:	     //	历史修改记录
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  @History:       // 历史修改记录
+ *
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2013-04-05     v1.0	        Write this module.
  *
  *  xiong-kaifang   2013-12-11     v1.1         Add msgs pool.
+ *
+ *  xiong-kaifang   2015-09-19     v1.2         1. Dynamically create and delete
+ *                                                 task object(task_t).
+ *                                              2. Delete msgs pool, all msgs
+ *                                                 allocated and deallocated
+ *                                                 using mailbox_alloc/free.
+ *                                              3. Add mutex to protect task
+ *                                                 state.
+ *                                              4. Add task_check_arguments to
+ *                                                 check the arguments.
+ *                                              5. Add task_check_state routine.
  *
  *  ============================================================================
  */
@@ -50,23 +62,18 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define TASKLIST_MSG_NUM_MAX                (100)
+#define TASK_IS_VALID(tsk)                  (HANDLE_IS_VALID(tsk))
 
-#define TASKLIST_CRITICAL_ENTER()           \
-    do {                                    \
-        mutex_lock(&glb_tsklist_mutex);     \
-    } while (0)
+#define TASKLIST_TASK_MIN                   (3)
+#define TASKLIST_TASK_MAX                   (32)
+#define TASKLIST_TASK_LINGER                (30 * 60)
 
-#define TASKLIST_CRITICAL_LEAVE()           \
-    do {                                    \
-        mutex_unlock(&glb_tsklist_mutex);   \
-    } while (0)
+#define task_check_arguments(arg)           osa_check_arguments(arg)
+#define task_check_arguments2(arg1, arg2)   osa_check_arguments2(arg1, arg2)
+#define task_check_arguments3(arg1, arg2, arg3) \
+        osa_check_arguments3(arg1, arg2, arg3)
 
-#define TASK_GET_TSK_HANDLE(tsk)            ((task_handle)tsk)
-
-#define TASK_IS_INVALID_TSK(tsk)            (TASK_INVALID_TSK == (tsk))
-
-#define TASK_MSG_SWAP_DST(msg)              \
+#define task_msg_swap_dst(msg)              \
     do {                                    \
         task_t tmp;                         \
         tmp = msg->u.m_tsk_msg.m_to;        \
@@ -74,6 +81,29 @@ extern "C" {
         msg->u.m_tsk_msg.m_frm = tmp;       \
     } while (0)
 
+/** ============================================================================
+ *  @Macro:         TASK_CHECK_STATE
+ *
+ *  @Description:   Description of this macro.
+ *  ============================================================================
+ */
+//#define TASK_CHECK_STATE
+
+#if defined(TASK_CHECK_STATE)
+
+#define task_check_valid_state(ptsk)        \
+    do {                                    \
+        task_state_t state;                 \
+        osa_mutex_lock  (ptsk->m_mutex);    \
+        state = ptsk->m_tsk_state;          \
+        osa_mutex_unlock(ptsk->m_mutex);    \
+        if (TASK_STATE_EXIT == state)       \
+        { return OSA_EINVAL; }              \
+    } while (0)
+#else
+
+#define task_check_valid_state(ptsk)        ((void)ptsk)
+#endif
 /*
  *  --------------------- Structure definition ---------------------------------
  */
@@ -88,55 +118,43 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __task_node_t; typedef struct __task_node_t task_node_t;
-
-struct __task_t;
 struct __task_t
 {
     DLIST_ELEMENT_RESERVED;
 
-    unsigned char   m_name[32];
-    mailbox_t		m_tsk_mbx;
-	
+    unsigned char   m_tsk_name[32];
+
+    mailbox_params_t
+                    m_mbx_prm;
+
+    mailbox_t       m_mbx;
+
 	TASK_MAIN		m_tsk_main;
 	unsigned int	m_tsk_pri;
 	unsigned int	m_stack_size;
-
     volatile
     unsigned int	m_tsk_state;
-
 	void          * m_userdata;
+
+    osa_mutex_t     m_mutex;
+
 	task_token_t	m_tsk_token;
-    task_node_t   * m_tsk_node;
+    task_data_t     m_tsk_data;
 };
 
-struct __task_node_t
+struct __tasklist_t
 {
     DLIST_ELEMENT_RESERVED;
 
-    unsigned char   m_name[32];
-    struct __task_t m_tsk;
+    bool_t          m_initialized;
+
+    unsigned int    m_id;
+
+    threadpool_t    m_thdpool;
+
+    osa_mutex_t     m_mutex;
+    dlist_t         m_list;
 };
-
-struct __tasklist_t; typedef struct __tasklist_t tasklist_t;
-struct __tasklist_t {
-    Bool            m_initialized;
-    Bool            m_paddings;
-	unsigned int	m_tsk_cnt;
-	unsigned int	m_cur_cnt;
-	
-	mutex_t			m_mutex;
-	threadpool_t	m_thdpool;
-	task_node_t   * m_tsklist;
-
-    msg_t         * m_msgs;
-
-    dlist_t         m_busy_list;
-    dlist_t         m_free_list;
-    dlist_t         m_msgs_list;
-};
-
-typedef struct __task_t * task_handle;
 
 /*
  *  --------------------- Global variable definition ---------------------------
@@ -148,17 +166,17 @@ typedef struct __task_t * task_handle;
  *  @Description:   Description of the variable.
  * -----------------------------------------------------------------------------
  */
-static tasklist_params_t glb_tsklist_prm  = {
-    .m_tsk_cnt    = TASKLIST_TSK_MAX
+static tasklist_params_t   glb_tsklist_prm  = {
+    .m_min_tsk_nums = TASKLIST_TASK_MIN,
+    .m_max_tsk_nums = TASKLIST_TASK_MAX,
+    .m_max_linger   = TASKLIST_TASK_LINGER
 };
 
-static tasklist_t glb_tsklist_obj = {
-    .m_initialized = FALSE,
+static struct __tasklist_t glb_tsklist_obj = {
+    .m_initialized  = FALSE,
 };
 
 static unsigned int glb_cur_init = 0;
-
-OSA_DECLARE_AND_INIT_MUTEX(glb_tsklist_mutex);
 
 /*
  *  --------------------- Local function forward declaration -------------------
@@ -166,53 +184,43 @@ OSA_DECLARE_AND_INIT_MUTEX(glb_tsklist_mutex);
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:      Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        //其它说明
  *
  *  ============================================================================
  */
 static status_t
-__tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm);
+__tasklist_initialize(struct __tasklist_t *ptsklist, tasklist_params_t *prm);
+
+static unsigned int __tasklist_get_task_id(struct __tasklist_t *ptsklist);
 
 static status_t
-__tasklist_alloc_task(tasklist_t *tsklist, task_node_t **tsk);
+__tasklist_deinitialize(struct __tasklist_t *ptsklist);
 
-static status_t
-__tasklist_free_task(tasklist_t *tsklist, task_node_t *tsk);
+static int __task_internal_main(void *userdata);
 
-static status_t
-__tasklist_deinitialize(tasklist_t *tsklist);
-
-static status_t
-task_init(task_handle hdl, const char *name, unsigned int id);
-
-static status_t
-task_deinit(task_handle hdl);
-
-static void * __task_internal_main(void *userdata);
-
-static void * __task_internal_exit(void *userdata);
+static int __task_internal_exit(void *userdata);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -220,67 +228,47 @@ static void * __task_internal_exit(void *userdata);
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:      Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
 status_t tasklist_init(tasklist_params_t *prm)
 {
-	status_t status = OSA_SOK;
-	
-	/* Create and initialize thdpool object */
-    TASKLIST_CRITICAL_ENTER();
+    status_t              status   = OSA_SOK;
+    struct __tasklist_t * ptsklist = &glb_tsklist_obj;
 
-	if (glb_cur_init++ == 0) {
-        
+    if (glb_cur_init++ == 0) {
+
         if (prm == NULL) {
             prm = &glb_tsklist_prm;
         }
 
-		status = __tasklist_initialize(&glb_tsklist_obj, prm);
-	}
+        status = __tasklist_initialize(ptsklist, prm);
+    }
 
-    TASKLIST_CRITICAL_LEAVE();
-	
-	return status;
-}
-
-status_t tasklist_deinit(void)
-{
-	status_t status = OSA_SOK;
-	
-	/* Deintialize and delete thdpool object */
-    TASKLIST_CRITICAL_ENTER();
-
-	if (--glb_cur_init == 0) {
-		status = __tasklist_deinitialize(&glb_tsklist_obj);
-	}
-
-    TASKLIST_CRITICAL_LEAVE();
-	
-	return status;
+    return status;
 }
 
 status_t tasklist_instruments(void)
@@ -288,221 +276,189 @@ status_t tasklist_instruments(void)
     return threadpool_instruments(glb_tsklist_obj.m_thdpool);
 }
 
-status_t task_create(const char *name, TASK_MAIN main,
-					 unsigned int pri, unsigned int stack_size,
-					 unsigned int init_state, void *userdata,
-					 task_t *tsk)
+status_t tasklist_deinit(void)
 {
-    int i;
-	status_t status = OSA_SOK;
-    task_node_t *tsk_node = NULL;
-	task_handle tsk_hdl = NULL;
-	task_data_t tsk_data;
-	
-	(*tsk) = TASK_INVALID_TSK;
-	status = __tasklist_alloc_task(&glb_tsklist_obj, &tsk_node);
-	if (OSA_ISERROR(status)) {
-		return status;
-	}
+    status_t              status   = OSA_SOK;
+    struct __tasklist_t * ptsklist = &glb_tsklist_obj;
 
-    snprintf(tsk_node->m_name, sizeof(tsk_node->m_name) - 1, "%s", name);
+    if (--glb_cur_init == 0) {
+        status = __tasklist_deinitialize(ptsklist);
+    }
 
-    tsk_hdl = &tsk_node->m_tsk;
-	(*tsk) = (task_t)tsk_hdl;
+    return status;
+}
 
-	tsk_hdl->m_tsk_main   = main;
-	tsk_hdl->m_tsk_pri    = pri;
-	tsk_hdl->m_stack_size = stack_size;
-    tsk_hdl->m_tsk_state  = init_state;
-	tsk_hdl->m_userdata   = userdata;
-	
+status_t task_create(const char *name, TASK_MAIN main,
+        unsigned int pri, unsigned int stack_size,
+        unsigned int init_state, void *userdata,
+        task_t *tsk)
+{
+    int               i;
+    unsigned int      id;
+    status_t          status = OSA_SOK;
+    struct __task_t * ptsk   = NULL;
+
+    task_check_arguments2(name, tsk);
+
+    (*tsk) = INVALID_HANDLE;
+
+    status = OSA_memAlloc(sizeof(struct __task_t), &ptsk);
+    if (OSA_ISERROR(status) || ptsk == NULL) {
+        return status;
+    }
+
+    snprintf(ptsk->m_tsk_name, sizeof(ptsk->m_tsk_name) - 1, "%s", name);
+
+    id = __tasklist_get_task_id(&glb_tsklist_obj);
+    snprintf(ptsk->m_mbx_prm.m_name, sizeof(ptsk->m_mbx_prm.m_name) - 1, "%s:%02d", "TSK", id);
+
+    status = mailbox_open(&ptsk->m_mbx, &ptsk->m_mbx_prm);
+    if (OSA_ISERROR(status)) {
+        OSA_memFree(sizeof(struct __task_t), ptsk);
+        return status;
+    }
+
+    status = osa_mutex_create(&ptsk->m_mutex);
+    if (OSA_ISERROR(status)) {
+        mailbox_close(&ptsk->m_mbx, &ptsk->m_mbx_prm);
+        OSA_memFree(sizeof(struct __task_t), ptsk);
+        return status;
+    }
+
+    ptsk->m_tsk_main        = main;
+    ptsk->m_tsk_pri         = pri;
+    ptsk->m_stack_size      = stack_size;
+    ptsk->m_tsk_state       = init_state;
+    ptsk->m_userdata        = userdata;
+
+    (*tsk) = (task_t)ptsk;
+
     if (main == NULL) {
         return status;
     }
 
-    tsk_data.m_name    = (char *)name;
-    tsk_data.m_main    = (Fxn)__task_internal_main;
-    tsk_data.m_exit    = (Fxn)__task_internal_exit;
+    ptsk->m_tsk_data.m_name = (char *)ptsk->m_tsk_name;
+    ptsk->m_tsk_data.m_main = (Fxn)__task_internal_main;
+    ptsk->m_tsk_data.m_exit = (Fxn)__task_internal_exit;
 
-    for (i = 0; i < OSA_ARRAYSIZE(tsk_data.m_args); i++) {
-        tsk_data.m_args[i] = (Arg)NULL;
+    for (i = 0; i < OSA_ARRAYSIZE(ptsk->m_tsk_data.m_args); i++) {
+        ptsk->m_tsk_data.m_args[i] = (Arg)NULL;
     }
-    tsk_data.m_args[0] = (Arg)tsk_node;
+    ptsk->m_tsk_data.m_args[0] = (Arg)ptsk;
 
-	status = threadpool_add_task(glb_tsklist_obj.m_thdpool, &tsk_data, &tsk_hdl->m_tsk_token);
-	if (OSA_ISERROR(status)) {
-		__tasklist_free_task(&glb_tsklist_obj, tsk_node);
-		return status;
-	}
-	
-	(*tsk) = (task_t)tsk_hdl;
+    status = threadpool_add_task(glb_tsklist_obj.m_thdpool, &ptsk->m_tsk_data, &ptsk->m_tsk_token);
+    if (OSA_ISERROR(status)) {
+        osa_mutex_delete(&ptsk->m_mutex);
+        mailbox_close(&ptsk->m_mbx, &ptsk->m_mbx_prm);
+        OSA_memFree(sizeof(struct __task_t), ptsk);
 
-	return status;
+        (*tsk) = INVALID_HANDLE;
+    }
+
+    return status;
 }
-
-#if 0
-status_t task_get_mailbox(task_t tsk, mailbox_t *mbx)
-{
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = (task_handle)tsk;
-	
-	OSA_assert(tsk_hdl != NULL && mbx != NULL);
-	
-	(*mbx) = tsk_hdl->m_tsk_mbx;
-
-	return status;
-}
-
-status_t task_set_mailbox(task_t tsk, mailbox_t mbx)
-{
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = (task_handle)tsk;
-	
-	OSA_assert(tsk_hdl != NULL && !mailbox_is_invalid(mbx)
-				&& mailbox_is_invalid(tsk_hdl->m_tsk_mbx));
-	
-	tsk_hdl->m_tsk_mbx = mbx;
-
-	return status;
-}
-#endif
 
 status_t task_send_msg(task_t to, task_t frm, msg_t *msg, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	task_handle to_hdl = (task_handle)to;
-	task_handle frm_hdl = (task_handle)frm;
-	
-	msg->u.m_tsk_msg.m_to  = to;
-	msg->u.m_tsk_msg.m_frm = frm;
-	status = mailbox_send_msg(to_hdl->m_tsk_mbx, frm_hdl->m_tsk_mbx,
-				msg, msgt, OSA_TIMEOUT_FOREVER);
-	
-	return status;
+    struct __task_t * ptsk_to   = (struct __task_t *)to;
+    struct __task_t * ptsk_frm  = (struct __task_t *)frm;
+
+    task_check_arguments3(ptsk_to, ptsk_frm, msg);
+
+    task_check_valid_state(ptsk_to);
+
+    msg->u.m_tsk_msg.m_to  = to;
+    msg->u.m_tsk_msg.m_frm = frm;
+
+    return mailbox_send_msg(ptsk_to->m_mbx, ptsk_frm->m_mbx, msg, msgt, OSA_TIMEOUT_FOREVER);
 }
 
-#if 0
-status_t task_broadcast(task_t to_lists[], task_t frm, msg_t *msg)
+status_t task_recv_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
 {
-	int i = 0;
-	int	msg_cnt = 0;
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = NULL;
-	mailbox_t mbx_lists[OSA_MBX_BROADCAST_MAX];
-	mailbox_t frm_mbx;
-	mailbox_handle mbx_hdl = (mailbox_handle)from;
-	
-	OSA_assert(to_lists != NULL && msg != NULL);
-	
-	for (i = 0; i < OSA_MBX_BROADCAST_MAX; i++) {
-		mbx_lists[i] = NULL;
-	}
-	
-	if ((task_handle)from == NULL) {
-		frm_mbx = MAILBOX_INVALID_MBX;
-	} else {
-		frm_mbx = ((task_handl)from)->m_tsk_mbx;
-	}
-	
-	for (i = 0; (tsk_hdl = (task_handle)to_lists[i]) != NULL; i++) {
-		msg_cnt++;
-		mbx_lists[i] = tsk_hdl->m_tsk_mbx;
-		
-		if (msg_cnt >= OSA_MBX_BROADCAST_MAX) {
-			OSA_assert(0);
-		}
-	}
-	
-	if (msg_cnt == 0) {
-		return status;
-	}
-	
-	msg->u.m_tsk_msg.m_to  = OSA_TASK_INVALID_TSK;
-	msg->u.m_tsk_msg.m_frm = frm;
-	status = mailbox_broadcast(mbx_lists, frm_mbx, msg);
-	
-	return status;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    task_check_arguments2(ptsk, msg);
+
+    task_check_valid_state(ptsk);
+
+    return mailbox_recv_msg(ptsk->m_mbx, msg, msgt, OSA_TIMEOUT_FOREVER);
 }
-#endif
 
 status_t task_broadcast(task_t tolists[], task_t frm,
         unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    int i;
-    msg_t *msg = NULL;
-    status_t status = OSA_SOK;
-    unsigned int msg_cnt = 0;
-    mailbox_t to_mbx_lists[MAILBOX_BROADCAST_MAX];
-    mailbox_t frm_mbx;
-    task_handle tsk_hdl = TASK_GET_TSK_HANDLE(frm);
+    int               i;
+    msg_t           * msg    = NULL;
+    status_t          status = OSA_SOK;
+    struct __task_t * ptsk   = NULL;
 
-    if (tsk_hdl != NULL) {
-        frm_mbx = tsk_hdl->m_tsk_mbx;
-    } else {
-        frm_mbx = MAILBOX_INVALID_MBX;
-    }
+    for (i = 0; TASK_IS_VALID(tolists[i]); i++) {
 
-    for (i = 0; i < OSA_ARRAYSIZE(to_mbx_lists); i++) {
-        to_mbx_lists[i] = MAILBOX_INVALID_MBX;
-    }
+        status = task_alloc_msg(sizeof(*msg), &msg);
 
-    for (i = 0; !TASK_IS_INVALID_TSK(tolists[i]); i++) {
-        tsk_hdl = TASK_GET_TSK_HANDLE(tolists[i]);
-        to_mbx_lists[i] = tsk_hdl->m_tsk_mbx;
-        msg_cnt++;
-
-        if (msg_cnt >= MAILBOX_BROADCAST_MAX) {
-            OSA_assert(0);
+        if (OSA_ISERROR(status) || msg == NULL) {
+            break;
         }
-    }
 
-    if (msg_cnt > 0) {
-        for (i = 0; i < msg_cnt; i++) {
-            status = task_alloc_msg(sizeof(*msg), &msg);
+        //msg_init(msg);
+        msg_set_cmd(msg, cmd);
+        msg_set_payload_ptr(msg, prm);
+        msg_set_payload_size(msg, size);
+        msg_set_flags(msg, flags);
+        msg_set_msg_size(msg, sizeof(*msg));
 
-            if (OSA_ISERROR(status)) {
-                break;
-            }
-            msg_init(msg);
-            msg_set_cmd(msg, cmd);
-            msg_set_payload_ptr(msg, prm);
-            msg_set_payload_size(msg, size);
-            msg_set_flags(msg, flags);
-            msg_set_msg_size(msg, sizeof(*msg));
-            //msg_set_msg_id(msg, id);
+        msg->u.m_tsk_msg.m_to  = tolists[i];
+        msg->u.m_tsk_msg.m_frm = frm;
 
-            msg->u.m_tsk_msg.m_to  = tolists[i];
-            msg->u.m_tsk_msg.m_frm = frm;
-            status |= mailbox_send_msg(to_mbx_lists[i], frm_mbx, msg, MSG_TYPE_CMD, OSA_TIMEOUT_FOREVER);
+        ptsk = (struct __task_t *)tolists[i];
 
-            msg = NULL;
+        status = task_send_msg(tolists[i], frm, msg, MSG_TYPE_CMD);
+        if (OSA_ISERROR(status)) {
+            task_free_msg(sizeof(*msg), msg);
         }
     }
 
     return status;
 }
 
-status_t task_synchronize(void *ud, task_t tsk, TASK_SYNC_FXN fxn, unsigned int nums)
+status_t task_synchronize(task_t tsk, TASK_SYNC fxn, unsigned int nums, void *userdata)
 {
-    int i;
-    status_t status = OSA_SOK;
-    msg_t *msg = NULL;
-    int retval = 0;
+    int        i;
+    int        retval = 0;
+    status_t   status = OSA_SOK;
+    msg_t    * msg    = NULL;
+    bool_t     bexit  = FALSE;
+
+    task_check_arguments2(HANDLE_TO_POINTER(tsk), fxn);
 
     status = task_get_msg_count(tsk, &nums, MSG_TYPE_CMD);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
 
     for (i = 0; i < nums; i++) {
 
         status = task_check_msg(tsk, &msg, MSG_TYPE_CMD);
-        
-        OSA_assert(OSA_SOK == status);
-        
-        retval = (*fxn)(ud, tsk, msg);
+
+        if (OSA_ISERROR(status)) {
+            continue;
+        }
+
+        if (TASK_CMD_EXIT == (msg_get_cmd(msg))) {
+            bexit = TRUE;
+        }
+
+        retval = (*fxn)(tsk, msg, userdata);
 
         msg_set_status(msg, retval);
 
-        status |= task_ack_free_msg(tsk, msg);
+        status = task_ack_free_msg(tsk, msg);
 
+    }
+
+    if (bexit) {
+        ((struct __task_t *)tsk)->m_tsk_state = TASK_STATE_EXIT;
     }
 
     return status;
@@ -510,7 +466,9 @@ status_t task_synchronize(void *ud, task_t tsk, TASK_SYNC_FXN fxn, unsigned int 
 
 status_t task_alloc_msg(unsigned short size, msg_t **msg)
 {
-#if 0
+    task_check_arguments(msg);
+
+#if 1
     return mailbox_alloc_msg(size, msg);
 #else
 
@@ -543,7 +501,9 @@ status_t task_alloc_msg(unsigned short size, msg_t **msg)
 
 status_t task_free_msg(unsigned short size, msg_t *msg)
 {
-#if 0
+    task_check_arguments(msg);
+
+#if 1
     return mailbox_free_msg(size, msg);
 #else
 
@@ -572,155 +532,165 @@ status_t task_free_msg(unsigned short size, msg_t *msg)
 #endif
 }
 
-status_t task_recv_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
-{
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-	status = mailbox_recv_msg(tsk_hdl->m_tsk_mbx, msg, msgt, OSA_TIMEOUT_FOREVER);
-	
-	return status;
-}
-
 status_t task_wait_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-	status = mailbox_wait_msg(tsk_hdl->m_tsk_mbx, msg, msgt);
-	
-	return status;
-}
+    struct __task_t * ptsk = (struct __task_t *)tsk;
 
-status_t task_wait_ack(task_t tsk, msg_t **msg, unsigned int id)
-{
-    status_t status = OSA_SOK;
-    task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
+    task_check_arguments2(ptsk, msg);
 
-    status = mailbox_wait_ack(tsk_hdl->m_tsk_mbx, msg, id);
+    task_check_valid_state(ptsk);
 
-    return status;
+    return mailbox_wait_msg(ptsk->m_mbx, msg, msgt);
 }
 
 status_t task_check_msg(task_t tsk, msg_t **msg, msg_type_t msgt)
 {
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-	status = mailbox_check_msg(tsk_hdl->m_tsk_mbx, msg, msgt);
-	
-	return status;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    task_check_arguments2(ptsk, msg);
+
+    task_check_valid_state(ptsk);
+
+    return mailbox_check_msg(ptsk->m_mbx, msg, msgt);
 }
 
 status_t task_wait_cmd(task_t tsk, msg_t **msg, unsigned short cmd)
 {
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-	status = mailbox_wait_cmd(tsk_hdl->m_tsk_mbx, msg, cmd);
-	
-	return status;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    task_check_arguments2(ptsk, msg);
+
+    task_check_valid_state(ptsk);
+
+    return mailbox_wait_cmd(ptsk->m_mbx, msg, cmd);
+}
+
+status_t task_wait_ack(task_t tsk, msg_t **msg, unsigned int id)
+{
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    task_check_arguments2(ptsk, msg);
+
+    //task_check_valid_state(ptsk);
+
+    return mailbox_wait_ack(ptsk->m_mbx, msg, id);
 }
 
 status_t task_flush(task_t tsk)
 {
-    task_handle hdl = TASK_GET_TSK_HANDLE(tsk);
+    struct __task_t * ptsk = (struct __task_t *)tsk;
 
-    return mailbox_flush(hdl->m_tsk_mbx);
+    task_check_arguments(ptsk);
+
+    task_check_valid_state(ptsk);
+
+    return mailbox_flush(ptsk->m_mbx);
 }
 
 status_t task_ack_free_msg(task_t tsk, msg_t *msg)
 {
-    status_t status = OSA_SOK;
-    task_handle to_hdl  = NULL;
-    task_handle frm_hdl = NULL;
+    status_t          status   = OSA_SOK;
+
+    task_check_arguments(msg);
 
     if (msg_get_flags(msg) & MSG_FLAGS_WAIT_ACK) {
-        TASK_MSG_SWAP_DST(msg);
+
+        task_msg_swap_dst(msg);
         msg->u.m_tsk_msg.m_frm = tsk;
 
         msg_clear_flags(msg, MSG_FLAGS_WAIT_ACK);
 
-        status |= task_send_msg(msg->u.m_tsk_msg.m_to,
-                    msg->u.m_tsk_msg.m_frm, msg, MSG_TYPE_ACK);
+        status = task_send_msg(msg->u.m_tsk_msg.m_to,
+                msg->u.m_tsk_msg.m_frm, msg, MSG_TYPE_ACK);
     } else {
 
         if (msg_get_flags(msg) & MSG_FLAGS_FREE_PRM) {
             OSA_memFree(msg_get_payload_size(msg), msg_get_payload_ptr(msg));
         }
 
-        //status |= mailbox_free_msg(msg_get_msg_size(msg), msg);
-        status |= task_free_msg(msg_get_msg_size(msg), msg);
+        status = task_free_msg(msg_get_msg_size(msg), msg);
     }
 
     return status;
 }
 
-#if 0
-status_t task_ack_msg(task_t tsk, task_msg_t *msg)
-{
-    status_t status = OSA_SOK;
-    task_handle to_hdl  = NULL;
-    task_handle frm_hdl = NULL;
-
-    task_msg_swap_dst(msg);
-    msg->m_frm = tsk;
-
-    to_hdl  = (task_handle)msg->m_to;
-    frm_hdl = (task_handle)msg->m_frm;
-    status |= mailbox_send_msg(to_hdl->m_mbx, frm_hdl->m_mbx, MAILBOX_MSGQ_ACK, (mailbox_msg_t *)msg);
-
-    return status;
-}
-#endif
-
 status_t task_get_msg_count(task_t tsk, unsigned int *cnt, msg_type_t msgt)
 {
-    status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
+    struct __task_t * ptsk = (struct __task_t *)tsk;
 
-    return mailbox_get_msg_count(tsk_hdl->m_tsk_mbx, cnt, msgt);
+    task_check_arguments2(ptsk, cnt);
+
+    return mailbox_get_msg_count(ptsk->m_mbx, cnt, msgt);
 }
 
 status_t task_get_state(task_t tsk, task_state_t *state)
 {
-    status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-    (*state) = tsk_hdl->m_tsk_state;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
 
-	return status;
+    task_check_arguments2(ptsk, state);
+
+    osa_mutex_lock  (ptsk->m_mutex);
+    (*state) = ptsk->m_tsk_state;
+    osa_mutex_unlock(ptsk->m_mutex);
+
+    return OSA_SOK;
 }
 
 status_t task_set_state(task_t tsk, task_state_t  state)
 {
-    status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(tsk);
-	
-    tsk_hdl->m_tsk_state = state;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
 
-	return status;
+    task_check_arguments(ptsk);
+
+    osa_mutex_lock  (ptsk->m_mutex);
+    ptsk->m_tsk_state = state;
+    osa_mutex_unlock(ptsk->m_mutex);
+
+    return OSA_SOK;
+}
+
+bool_t   task_check_state(task_t tsk)
+{
+    bool_t            state;
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    if (ptsk == NULL) {
+        return FALSE;
+    }
+
+    osa_mutex_lock  (ptsk->m_mutex);
+    state = (TASK_STATE_EXIT != ptsk->m_tsk_state);
+    osa_mutex_unlock(ptsk->m_mutex);
+
+    return (state);
 }
 
 status_t task_delete(task_t *tsk)
 {
-	status_t status = OSA_SOK;
-	task_handle tsk_hdl = TASK_GET_TSK_HANDLE(*tsk);
-	
-	OSA_assert(tsk_hdl != NULL);
+    status_t              status   = OSA_SOK;
+    struct __task_t     * ptsk     = (struct __task_t *)(*tsk);
+    struct __tasklist_t * ptsklist = &glb_tsklist_obj;
 
-    if (tsk_hdl->m_tsk_main != NULL) {
-        status = threadpool_cancel_task(glb_tsklist_obj.m_thdpool, tsk_hdl->m_tsk_token);
+    task_check_arguments2(tsk, ptsk);
+
+    if (ptsk->m_tsk_main != NULL) {
+
+        /*
+         *  TODO: We should improve this!!!
+         */
+        status = threadpool_cancel_task(ptsklist->m_thdpool, &ptsk->m_tsk_token);
     }
 
-    /*
-     *  TODO: !!!!
-     */
-	status |= __tasklist_free_task(&glb_tsklist_obj, tsk_hdl->m_tsk_node);
 
-    (*tsk) = TASK_INVALID_TSK;
+    status |= osa_mutex_delete(&ptsk->m_mutex);
 
-	return status;
+    status |= mailbox_close(&ptsk->m_mbx, &ptsk->m_mbx_prm);
+
+    status |= OSA_memFree(sizeof(struct __task_t), ptsk);
+
+    (*tsk) = INVALID_HANDLE;
+
+    return status;
 }
 
 /*
@@ -729,246 +699,148 @@ status_t task_delete(task_t *tsk)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
  *  ============================================================================
  */
 static status_t
-__tasklist_initialize(tasklist_t *tsklist, tasklist_params_t *prm)
+__tasklist_initialize(struct __tasklist_t *ptsklist, tasklist_params_t *prm)
 {
-	int i = 0;
-	status_t status = OSA_SOK;
-    unsigned int mem_size = 0;
-    task_node_t *tsk_node = NULL;
-	threadpool_params_t thdpool_params;
-	
-	memset(tsklist, 0, sizeof(tsklist));
-	
-	tsklist->m_tsk_cnt = prm->m_tsk_cnt;
-	tsklist->m_cur_cnt = 0;
+    status_t            status = OSA_SOK;
+    threadpool_params_t thdpool_params;
 
-    mem_size = sizeof(task_node_t) * tsklist->m_tsk_cnt + sizeof(msg_t) * TASKLIST_MSG_NUM_MAX;
-	status = OSA_memAlloc(mem_size, (void **)&tsklist->m_tsklist);
-	if (OSA_ISERROR(status) || tsklist->m_tsklist == NULL) {
-		return OSA_EMEM;
-	}
-	
-	status = mutex_create(&tsklist->m_mutex);
-	if (OSA_ISERROR(status)) {
-		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
-		tsklist->m_tsklist = NULL;
-		return status;
-	}
-	
-	thdpool_params.m_min_thd_nums = 3;
-	thdpool_params.m_max_thd_nums = tsklist->m_tsk_cnt;
-	thdpool_params.m_max_tsk_nums = tsklist->m_tsk_cnt;
-	status = threadpool_create(&tsklist->m_thdpool, &thdpool_params);
-	if (OSA_ISERROR(status)) {
-		mutex_delete(&tsklist->m_mutex);
-		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
-		tsklist->m_tsklist = NULL;
+    /* Initialize tasklist object */
+    memset(ptsklist, 0, sizeof(*ptsklist));
+
+    status = osa_mutex_create(&ptsklist->m_mutex);
+    if (OSA_ISERROR(status)) {
         return status;
-	}
-	
-    status |= dlist_init(&tsklist->m_busy_list);
-    status |= dlist_init(&tsklist->m_free_list);
+    }
 
-	/* Initialize task object */
-	for (i = 0; i < tsklist->m_tsk_cnt; i++) {
-        tsk_node = tsklist->m_tsklist + i;
-        tsk_node->m_tsk.m_tsk_node = tsk_node;
+    thdpool_params.m_min_thd_nums = prm->m_min_tsk_nums;
+    thdpool_params.m_max_thd_nums = prm->m_max_tsk_nums;
+    thdpool_params.m_max_linger   = prm->m_max_linger;
+    status = threadpool_create(&ptsklist->m_thdpool, &thdpool_params);
+    if (OSA_ISERROR(status)) {
+        osa_mutex_delete(&ptsklist->m_mutex);
+        return status;
+    }
 
-        status |= task_init(&tsk_node->m_tsk, "TSK", i + 1);
-        
-        if (OSA_ISERROR(status)) {
+    status |= dlist_init(&ptsklist->m_list);
+
+    ptsklist->m_id          = 0;
+    ptsklist->m_initialized = TRUE;
+
+    return status;
+}
+
+static unsigned int __tasklist_get_task_id(struct __tasklist_t *ptsklist)
+{
+    unsigned int id = 0;
+
+    osa_mutex_lock  (ptsklist->m_mutex);
+
+    id = ptsklist->m_id++;
+
+    osa_mutex_unlock(ptsklist->m_mutex);
+
+    return id;
+}
+
+static status_t
+__tasklist_deinitialize(struct __tasklist_t *ptsklist)
+{
+    status_t status = OSA_SOK;
+
+    /* Deinitialize tasklist object */
+    status |= threadpool_delete(&ptsklist->m_thdpool);
+
+    status |= osa_mutex_delete(&ptsklist->m_mutex);
+
+    status |= dlist_init(&ptsklist->m_list);
+
+    ptsklist->m_initialized = FALSE;
+
+    return status;
+}
+
+static int __task_internal_main(void *userdata)
+{
+    msg_t           * pmsg;
+    status_t          status;
+    struct __task_t * ptsk = (struct __task_t *)userdata;
+
+    OSA_assert(ptsk != NULL);
+
+    while (task_check_state((task_t)ptsk)) {
+
+        pmsg   = NULL;
+        status = task_wait_msg((task_t)ptsk, &pmsg, MSG_TYPE_CMD);
+
+        if (OSA_ISERROR(status) || pmsg == NULL) {
             break;
         }
 
-        status |= dlist_initialize_element((dlist_element_t *)tsk_node);
-        status |= dlist_put_tail(&tsklist->m_free_list, (dlist_element_t *)tsk_node);
-	}
+        //OSA_assert(OSA_SOK == status && pmsg != NULL);
 
-    /* Initialize msg pool */
-    status |= dlist_init(&tsklist->m_msgs_list);
-    tsklist->m_msgs = (msg_t *)(tsklist->m_tsklist + tsklist->m_tsk_cnt);
-
-	for (i = 0; i < TASKLIST_MSG_NUM_MAX; i++) {
-        status |= dlist_initialize_element((dlist_element_t *)&tsklist->m_msgs[i]);
-        status |= dlist_put_tail(&tsklist->m_msgs_list, (dlist_element_t *)&tsklist->m_msgs[i]);
-	}
-
-	return status;
-}
-
-static status_t
-__tasklist_alloc_task(tasklist_t *tsklist, task_node_t **tsk)
-{
-    status_t status = OSA_ENOENT;
-
-    mutex_lock(&tsklist->m_mutex);
-
-    if (!dlist_is_empty(&tsklist->m_free_list)) {
-        status = dlist_get_head(&tsklist->m_free_list, (dlist_element_t **)tsk);
-        status = dlist_put_tail(&tsklist->m_busy_list, (dlist_element_t *)(*tsk));
-        OSA_assert(OSA_SOK == status);
-    }
-
-    mutex_unlock(&tsklist->m_mutex);
-
-    return status;
-}
-
-static status_t
-__tasklist_free_task(tasklist_t *tsklist, task_node_t *tsk)
-{
-    status_t status = OSA_SOK;
-
-    mutex_lock(&tsklist->m_mutex);
-
-    status |= dlist_remove_element(&tsklist->m_busy_list, (dlist_element_t *)tsk);
-    status |= dlist_put_tail(&tsklist->m_free_list, (dlist_element_t *)tsk);
-    OSA_assert(OSA_SOK == status);
-
-    mutex_unlock(&tsklist->m_mutex);
-
-    return status;
-}
-
-static status_t
-__tasklist_deinitialize(tasklist_t *tsklist)
-{
-	int i = 0;
-    unsigned int mem_size = 0;
-    task_node_t *tsk_node = NULL;
-	status_t status = OSA_SOK;
-	
-	/* Deinitialize task object */
-	for (i = 0; i < tsklist->m_tsk_cnt; i++) {
-        tsk_node = tsklist->m_tsklist + i;
-
-		status  |= task_deinit(&tsk_node->m_tsk);
-	}
-	
-	status |= threadpool_delete(&tsklist->m_thdpool);
-	status |= mutex_delete(&tsklist->m_mutex);
-	
-    mem_size = sizeof(task_node_t) * tsklist->m_tsk_cnt + sizeof(msg_t) * TASKLIST_MSG_NUM_MAX;
-
-	if (tsklist->m_tsklist != NULL) {
-		OSA_memFree(mem_size, (void *)tsklist->m_tsklist);
-		tsklist->m_tsklist = NULL;
-	}
-	
-	return status;
-}
-
-static status_t
-task_init(task_handle hdl, const char *name, unsigned int id)
-{
-    status_t status = OSA_SOK;
-
-    snprintf(hdl->m_name, sizeof(hdl->m_name) - 1, "%s:%02d", name, id);
-
-    status |= mailbox_system_register(hdl->m_name, &hdl->m_tsk_mbx);
-
-    return status;
-}
-
-static status_t
-task_deinit(task_handle hdl)
-{
-    status_t status = OSA_SOK;
-
-    status |= mailbox_system_unregister(hdl->m_name, hdl->m_tsk_mbx);
-
-    return status;
-}
-
-static void * __task_internal_main(void *userdata)
-{
-	msg_t        * msg = NULL;
-	status_t	   status;
-    task_state_t   state;
-    task_node_t  * tsk_node = (task_node_t *)userdata;
-	task_handle    tsk_hdl = NULL;
-	
-	OSA_assert(tsk_node != NULL);
-
-    tsk_hdl = &tsk_node->m_tsk;
-
-    while (1) {
-
-        status = task_wait_msg((task_t)tsk_hdl, &msg, MSG_TYPE_CMD);
-
-        OSA_assert(OSA_SOK == status);
-
-        status = tsk_hdl->m_tsk_main(tsk_hdl->m_userdata, (task_t)tsk_hdl, &msg);
-
-        if (msg != NULL) {
-            msg_set_status(msg, status);
-            status |= task_ack_free_msg((task_t)tsk_hdl, msg);
+        if (TASK_CMD_INIT == msg_get_cmd(pmsg)) {
+            task_set_state((task_t)ptsk, TASK_STATE_INIT);
+        } else if (TASK_CMD_PROC == msg_get_cmd(pmsg)) {
+            task_set_state((task_t)ptsk, TASK_STATE_PROC);
+        } else if (TASK_CMD_EXIT == msg_get_cmd(pmsg)) {
+            task_set_state((task_t)ptsk, TASK_STATE_EXIT);
         }
 
-        if (!OSA_ISERROR(task_get_state((task_t)tsk_hdl, &state))
-                && state == TASK_STATE_EXIT) {
-            break;
+        /* Call the user's main function */
+        status = ptsk->m_tsk_main((task_t)ptsk, &pmsg, ptsk->m_userdata);
+
+        if (pmsg != NULL) {
+            msg_set_status(pmsg, status);
+
+            task_ack_free_msg((task_t)ptsk, pmsg);
         }
     }
-	
-	return ((void *)tsk_hdl);
+
+    return status;
 }
 
-static void * __task_internal_exit(void *userdata)
+static int __task_internal_exit(void *userdata)
 {
-    status_t	   status;
-    task_state_t   state;
-    task_node_t  * tsk_node = (task_node_t *)userdata;
-    task_t         tsk = TASK_INVALID_TSK;
+    msg_t           * pmsg = NULL;
+    msg_t           * ptmp = NULL;
+    status_t          status;
+    task_state_t      state;
+    struct __task_t * ptsk = (struct __task_t *)userdata;
 
-    OSA_assert(tsk_node != NULL);
+    OSA_assert(ptsk != NULL);
 
-    tsk = (task_t)&tsk_node->m_tsk;
+    status = task_get_state((task_t)ptsk, &state);
 
-    status = task_get_state(tsk, &state);
+    if (TASK_STATE_EXIT != state) {
+        status = task_alloc_msg(sizeof(*pmsg), &pmsg);
 
-#if 0
-    //if ((state & TASK_STATE_BITSMASK) == TASK_STATE_RUNNING) {
-        msg_t *msg = NULL;
-        msg_t *rcv_msg = NULL;
+        if (!OSA_ISERROR(status) && pmsg != NULL) {
+            unsigned int msg_id;
+            msg_set_payload_ptr(pmsg, NULL);
+            msg_set_payload_size(pmsg, 0);
+            msg_set_cmd(pmsg, TASK_CMD_EXIT);
+            msg_set_flags(pmsg, MSG_FLAGS_WAIT_ACK);
+            msg_set_status(pmsg, OSA_SOK);
 
-        status = task_alloc_msg(sizeof(*msg), &msg);
-        if (!OSA_ISERROR(status) && msg != NULL) {
-            msg_init(msg);
-            msg_set_payload_ptr(msg, NULL);
-            msg_set_payload_size(msg, 0);
-            msg_set_cmd(msg, TASK_CMD_EXIT);
-            msg_set_flags(msg, MSG_FLAGS_WAIT_ACK);
-            msg_set_status(msg, OSA_SOK);
+            msg_id = msg_get_msg_id(pmsg);
 
-            status |= task_send_msg(tsk, tsk, msg, MSG_TYPE_CMD);
-            status |= task_recv_msg(tsk, &rcv_msg, MSG_TYPE_ACK);
-            OSA_assert(rcv_msg == msg);
+            status |= task_send_msg((task_t)ptsk, (task_t)ptsk, pmsg, MSG_TYPE_CMD);
+            status |= task_wait_ack((task_t)ptsk, &ptmp, msg_id);
 
-            task_free_msg(sizeof(*msg), rcv_msg);
+            OSA_assert(ptmp == pmsg);
+
+            task_free_msg(sizeof(*pmsg), pmsg);
         }
-    //}
-    if (state == TASK_STATE_INIT || state == TASK_STATE_PROC) {
     }
 
-    /*
-     *  0. TASK_STATE_REGISTER
-     *  1. TASK_STATE_INIT
-     *  2. TASK_STATE_PROC
-     *  3. TASK_STATE_EXIT
-     *  4. TASK_STATE_UNREGISTER
-     *
-     */
-#endif
-
-    return ((void *)status);
+    return status;
 }
 
 #if defined(__cplusplus)
