@@ -7,33 +7,38 @@
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-04
  *
  *  @Description:   The osa message queue(using osa_queue).
- *	
  *
- *  @Version:	    v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Version:       v1.0
  *
- *  @History:	     //	历史修改记录
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  @History:       // 历史修改记录
+ *
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2013-04-04     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-09-19     v1.1         1. Using datatype 'queue2_t' to
+ *                                                 implement msg queue.
+ *                                              2. Add codes to reuse the msg to
+ *                                                 be freed.
+ *                                              3. Add codes to check arguments.
  *
  *  ============================================================================
  */
 
 /*  --------------------- Include system headers ---------------------------- */
-#include <stdio.h>
 #include <string.h>
-#include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
 #include "osa_msgq.h"
 #include "osa_mutex.h"
 #include "osa_mem.h"
+#include "osa_queue2.h"
 #include "dlist.h"
 
 #if defined(__cplusplus)
@@ -50,22 +55,15 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define MSGQ_MGR_MSGQ_MAX   (32)
-
-#define MSGQ_MGR_CRITICAL_ENTER()       \
-    do {                                \
-        mutex_lock(&glb_mgr_mutex);     \
-    } while (0)
-
-#define MSGQ_MGR_CRITICAL_LEAVE()       \
-    do {                                \
-        mutex_unlock(&glb_mgr_mutex);   \
-    } while (0)
+#define MSGQ_MGR_MSGQ_MAX                   (32)
 
 #define MSGQ_MSG_GET_SRC_QUEUE(msg)         (msg_get_src(msg))
 #define MSGQ_MSG_SET_SRC_QUEUE(msg, src)    (msg_set_src(msg, src))
 #define MSGQ_MSG_GET_DST_QUEUE(msg)         (msg_get_dst(msg))
 #define MSGQ_MSG_SET_DST_QUEUE(msg, dst)    (msg_set_dst(msg, dst))
+
+#define msgq_check_arguments(arg)           osa_check_arguments(arg)
+#define msgq_check_arguments2(arg1, arg2)   osa_check_arguments2(arg1, arg2)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -83,44 +81,25 @@ extern "C" {
  */
 struct __msgq_t
 {
-	unsigned int	m_rd_idx;
-	unsigned int	m_wr_idx;
-	unsigned int	m_len;
-	unsigned int	m_count;
-
-	msg_t	      * m_msgs[MSGQ_MGR_MSGQ_MAX];
-	
-	//mutex_t		m_mutex;
-    pthread_mutex_t m_mutex;
-	pthread_cond_t	m_rd_cond;
-	pthread_cond_t	m_wr_cond;
-};
-
-typedef struct __msgq_t * msgq_handle;
-
-struct __msgq_node_t; typedef struct __msgq_node_t msgq_node_t;
-struct __msgq_node_t
-{
     DLIST_ELEMENT_RESERVED;
     unsigned char   m_name[32];
-    struct __msgq_t m_msgq;
+
+    queue2_t        m_queue;
 };
 
 struct __msgq_mgr_t; typedef struct __msgq_mgr_t msgq_mgr_t;
 struct __msgq_mgr_t
 {
-    unsigned int    m_reserver[2];
-    Bool            m_initialized;
+    DLIST_ELEMENT_RESERVED;
 
-    mutex_t         m_mutex;
-    unsigned int    m_msgq_cnt;
-    unsigned int    m_msgq_used;
-    msgq_node_t   * m_msgqs;
-    dlist_t         m_busy_list;
-    dlist_t         m_free_list;
+    bool_t          m_initialized;
+
+    unsigned int    m_msg_id;
+
+    osa_mutex_t     m_mutex;
+    dlist_t         m_list;
+    dlist_t         m_msgs_pool;
 };
-
-typedef struct __msgq_mgr_t * msgq_mgr_handle;
 
 /*
  *  --------------------- Global variable definition ---------------------------
@@ -142,42 +121,58 @@ static msgq_mgr_t       glb_msgq_mgr = {
 
 static unsigned int     glb_cur_init = 0;
 
-OSA_DECLARE_AND_INIT_MUTEX(glb_mgr_mutex);
-
 /*
  *  --------------------- Local function forward declaration -------------------
  */
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:      Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
 static status_t
-msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_node_t **node);
+__msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_t *msgq);
+
+static status_t
+__msgq_mgr_register(const char *name, msgq_t msgq, msgq_attrs_t *attrs);
+
+static status_t
+__msgq_mgr_find(const char *name, msgq_t *msgq);
+
+static status_t
+__msgq_mgr_unregister(const char *name, msgq_t msgq);
+
+static unsigned int
+__msgq_mgr_get_msg_id(void);
+
+static bool
+__msgq_mgr_find_match_fxn(dlist_element_t *elem, void *data);
+
+static status_t
+__msgq_mgr_msgs_pool_apply_fxn(dlist_element_t *elem, void *data);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -185,86 +180,107 @@ msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_node_t **nod
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:      Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
-status_t msgq_init(struct __msgq_t *msgq)
+status_t msgq_mgr_init(msgq_mgr_prm_t *prm)
 {
-	int i;
-	status_t status = OSA_SOK;
-	pthread_condattr_t	cond_attr;
-	pthread_mutexattr_t	mutex_attr;
-    msgq_handle hdl = (msgq_handle)msgq;
-	
-	OSA_assert(hdl != NULL);
-	
-	hdl->m_rd_idx = 0;
-	hdl->m_wr_idx = 0;
-	hdl->m_len    = MSGQ_MGR_MSGQ_MAX;
-	hdl->m_count  = 0;
-	
-	for (i = 0; i < hdl->m_len; i++) {
-		hdl->m_msgs[i] = NULL;
-	}
-	
-	status |= pthread_mutexattr_init(&mutex_attr);
-	status |= pthread_condattr_init(&cond_attr);
-	
-	status |= pthread_mutex_init(&hdl->m_mutex, &mutex_attr);
-	status |= pthread_cond_init(&hdl->m_rd_cond, &cond_attr);
-	status |= pthread_cond_init(&hdl->m_wr_cond, &cond_attr);
-	
-	pthread_mutexattr_destroy(&mutex_attr);
-	pthread_condattr_destroy(&cond_attr);
-	
-	return status;
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    if (glb_cur_init++ == 0) {
+
+        status = osa_mutex_create(&pmgr->m_mutex);
+        if (OSA_ISERROR(status)) {
+            return status;
+        }
+
+        status |= dlist_init(&pmgr->m_list);
+        status |= dlist_init(&pmgr->m_msgs_pool);
+
+        pmgr->m_msg_id      = 0;
+        pmgr->m_initialized = TRUE;
+    }
+
+    return status;
 }
 
-status_t msgq_deinit(struct __msgq_t *msgq)
+status_t msgq_mgr_deinit(void)
 {
-	status_t status = OSA_SOK;
-    msgq_handle hdl = (msgq_handle)msgq;
-	
-	OSA_assert(hdl != NULL);
-	
-	pthread_cond_destroy(&hdl->m_wr_cond);
-	pthread_cond_destroy(&hdl->m_rd_cond);
-	pthread_mutex_destroy(&hdl->m_mutex);
-	
-	return status;
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    if (--glb_cur_init == 0) {
+
+        status |= dlist_map2(&pmgr->m_msgs_pool, __msgq_mgr_msgs_pool_apply_fxn, NULL);
+
+        status |= dlist_init(&pmgr->m_list);
+
+        status |= osa_mutex_delete(&pmgr->m_mutex);
+
+        pmgr->m_initialized = FALSE;
+    }
+
+    return status;
 }
 
 status_t msgq_open(const char *name, msgq_t *msgq, msgq_attrs_t *attrs)
 {
-    return msgq_mgr_register(name, msgq, attrs);
+    status_t          status = OSA_SOK;
+    struct __msgq_t * pmsgq  = NULL;
+
+    msgq_check_arguments(msgq);
+
+    (*msgq) = INVALID_HANDLE;
+
+    status = OSA_memAlloc(sizeof(struct __msgq_t), &pmsgq);
+    if (OSA_ISERROR(status) || pmsgq == NULL) {
+        return status;
+    }
+
+    status = queue2_create(&pmsgq->m_queue);
+    if (OSA_ISERROR(status)) {
+        OSA_memFree(sizeof(struct __msgq_t), pmsgq);
+        return status;
+    }
+
+    snprintf(pmsgq->m_name, sizeof(pmsgq->m_name) - 1, "%s", name);
+
+    status |= __msgq_mgr_register(name, (msgq_t)pmsgq, attrs);
+
+    (*msgq) = (msgq_t)pmsgq;
+
+    return status;
 }
 
 status_t msgq_locate(const char *name, msgq_t *msgq, msgq_locate_attrs_t *attrs)
 {
-	return msgq_mgr_find(name, msgq);
+    msgq_check_arguments2(name, msgq);
+
+	return __msgq_mgr_find(name, msgq);
 }
 
 status_t msgq_release(msgq_t msgq)
@@ -274,303 +290,135 @@ status_t msgq_release(msgq_t msgq)
 
 status_t msgq_alloc(unsigned short size, msg_t **msg)
 {
-    return OSA_memAlloc(size, (void **)msg);
+    status_t              status = OSA_EFAIL;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    msgq_check_arguments(msg);
+
+    (*msg) = NULL;
+
+    status |= osa_mutex_lock  (pmgr->m_mutex);
+    if (!dlist_is_empty(&pmgr->m_msgs_pool)) {
+        status = dlist_search_element(&pmgr->m_msgs_pool,
+                                      (void *)((unsigned int)size),
+                                      (dlist_element_t **)msg,
+                                      __msgq_mgr_find_match_fxn);
+        if (!OSA_ISERROR(status) && (*msg) != NULL) {
+            status |= dlist_remove_element(&pmgr->m_msgs_pool, (dlist_element_t *)(*msg));
+        }
+    }
+    status |= osa_mutex_unlock(pmgr->m_mutex);
+
+    if (OSA_ISERROR(status) && (*msg) == NULL) {
+        status = OSA_memAlloc(size, msg);
+        if (!OSA_ISERROR(status) && (*msg) != NULL) {
+            msg_init((*msg));
+            msg_set_msg_id((*msg), __msgq_mgr_get_msg_id());
+        }
+    }
+
+    return status;
 }
 
 status_t msgq_free(unsigned short size, msg_t *msg)
 {
-    return OSA_memFree(size, (void *)msg);
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    msgq_check_arguments(msg);
+
+    status |= osa_mutex_lock  (pmgr->m_mutex);
+    status |= dlist_put_tail(&pmgr->m_msgs_pool, (dlist_element_t *)msg);
+    status |= osa_mutex_unlock(pmgr->m_mutex);
+
+    return status;
 }
 
 status_t msgq_send(msgq_t msgq, msg_t *msg, unsigned int timeout)
 {
-	status_t status = OSA_ENOENT;
-	msgq_handle hdl = (msgq_handle)msgq;
-	
-	OSA_assert(hdl != NULL && msg != NULL);
-	
-	pthread_mutex_lock(&hdl->m_mutex);
-	
-	while (1) {
-		if (hdl->m_count < hdl->m_len) {
-			hdl->m_msgs[hdl->m_wr_idx] = msg;
-			hdl->m_wr_idx = (hdl->m_wr_idx + 1) % hdl->m_len;
-			hdl->m_count++;
-			status = OSA_SOK;
-			pthread_cond_signal(&hdl->m_rd_cond);
-			break;
-		} else  {
-			if (OSA_TIMEOUT_NONE == timeout) {
-				break;
-			}
-		
-			status = pthread_cond_wait(&hdl->m_wr_cond, &hdl->m_mutex);
-		}
-	}
-	
-	pthread_mutex_unlock(&hdl->m_mutex);
-	
-	return status;
+    struct __msgq_t * pmsgq  = (struct __msgq_t *)msgq;
+
+    msgq_check_arguments(pmsgq);
+
+    return queue2_put(pmsgq->m_queue, (void *)msg, timeout);
 }
 
 status_t msgq_recv(msgq_t msgq, msg_t **msg, unsigned int timeout)
 {
-	status_t status = OSA_ENOENT;
-	msgq_handle hdl = (msgq_handle)msgq;
-	
-	OSA_assert(hdl != NULL && msg != NULL);
-	
-	pthread_mutex_lock(&hdl->m_mutex);
-	
-	while (1) {
-		if (hdl->m_count > 0) {
-            
-            if (msg != NULL) {
-			    (*msg) = hdl->m_msgs[hdl->m_rd_idx];
-            }
+    struct __msgq_t * pmsgq  = (struct __msgq_t *)msgq;
 
-			hdl->m_rd_idx = (hdl->m_rd_idx + 1) % hdl->m_len;
-			hdl->m_count--;
-			status = OSA_SOK;
-			pthread_cond_signal(&hdl->m_wr_cond);
-			break;
-		} else  {
-			if (OSA_TIMEOUT_NONE == timeout) {
-				break;
-			}
-		
-			status = pthread_cond_wait(&hdl->m_rd_cond, &hdl->m_mutex);
-		}
-	}
-	
-	pthread_mutex_unlock(&hdl->m_mutex);
-	
-	return status;
+    msgq_check_arguments(pmsgq);
+
+    return queue2_get(pmsgq->m_queue, (void **)msg, timeout);
 }
 
 status_t msgq_get_src_queue(msg_t *msg, msgq_t *msgq)
 {
-	status_t status = OSA_SOK;
-	
-	OSA_assert(msg != NULL && msgq != NULL);
-	
+    status_t status = OSA_SOK;
+
+    msgq_check_arguments2(msg, msgq);
+
 	(*msgq) = (msgq_t)MSGQ_MSG_GET_SRC_QUEUE(msg);
-	
-	return status;
+
+    return status;
 }
 
 status_t msgq_set_src_queue(msg_t *msg, msgq_t msgq)
 {
-	status_t status = OSA_SOK;
-	
-	OSA_assert(msg != NULL);
-	
+    status_t status = OSA_SOK;
+
+    msgq_check_arguments(msg);
+
 	MSGQ_MSG_SET_SRC_QUEUE(msg, msgq);
-	
-	return status;
+
+    return status;
 }
 
 status_t msgq_get_dst_queue(msg_t *msg, msgq_t *msgq)
 {
-	status_t status = OSA_SOK;
-	
-	OSA_assert(msg != NULL && msgq != NULL);
-	
+    status_t status = OSA_SOK;
+
+    msgq_check_arguments2(msg, msgq);
+
 	(*msgq) = (msgq_t)MSGQ_MSG_GET_DST_QUEUE(msg);
-	
-	return status;
+
+    return status;
 }
 
 status_t msgq_set_dst_queue(msg_t *msg, msgq_t msgq)
 {
-	status_t status = OSA_SOK;
-	
-	OSA_assert(msg != NULL);
-	
+    status_t status = OSA_SOK;
+
+    msgq_check_arguments2(msg, HANDLE_TO_POINTER(msgq));
+
 	MSGQ_MSG_SET_DST_QUEUE(msg, msgq);
-	
-	return status;
-}
-
-status_t msgq_count (msgq_t msgq, unsigned int *cnt)
-{
-	status_t status = OSA_SOK;
-	msgq_handle hdl = (msgq_handle)msgq;
-	
-	OSA_assert(hdl != NULL && cnt != NULL);
-	
-	pthread_mutex_lock(&hdl->m_mutex);
-	
-	(*cnt) = hdl->m_count;
-	
-	pthread_mutex_unlock(&hdl->m_mutex);
-	
-	return status;
-}
-
-status_t msgq_close(const char *name, msgq_t msgq)
-{
-    return msgq_mgr_unregister(name, msgq);
-}
-
-status_t msgq_mgr_init(msgq_mgr_prm_t *prm)
-{
-    int i;
-    Bool need_init = FALSE;
-    status_t status = OSA_SOK;
-    msgq_mgr_handle hdl = &glb_msgq_mgr;
-
-    MSGQ_MGR_CRITICAL_ENTER();
-    if (glb_cur_init++ == 0) {
-        need_init = TRUE;
-    }
-    MSGQ_MGR_CRITICAL_LEAVE();
-
-    if (!need_init) {
-        return status;
-    }
-
-    OSA_assert(TRUE == need_init);
-
-    if (prm == NULL) {
-        prm = &glb_mgr_prm;
-    }
-
-    hdl->m_msgq_cnt = prm->m_msgq_cnt;
-    status = OSA_memAlloc(sizeof(msgq_node_t) * hdl->m_msgq_cnt, (void **)&hdl->m_msgqs);
-    if (OSA_ISERROR(status) || hdl->m_msgqs == NULL) {
-        return OSA_EMEM;
-    }
-    hdl->m_msgq_used = 0;
-
-    status |= mutex_create(&hdl->m_mutex);
-    status |= dlist_init(&hdl->m_busy_list);
-    status |= dlist_init(&hdl->m_free_list);
-    OSA_assert(OSA_SOK == status);
-
-    for (i = 0; i < hdl->m_msgq_cnt; i++) {
-		status |= msgq_init(&(hdl->m_msgqs + i)->m_msgq);
-        status |= dlist_initialize_element((dlist_element_t *)&hdl->m_msgqs[i]);
-        status |= dlist_put_tail(&hdl->m_free_list, (dlist_element_t *)&hdl->m_msgqs[i]);
-        OSA_assert(OSA_SOK == status);
-    }
-
-    hdl->m_initialized = TRUE;
 
     return status;
 }
 
-status_t msgq_mgr_register(const char *name, msgq_t *msgq, msgq_attrs_t *attrs)
+status_t msgq_count(msgq_t msgq, unsigned int *cnt)
 {
-    status_t status = OSA_SOK;
-    msgq_node_t *msgq_node;
-    msgq_mgr_handle hdl = &glb_msgq_mgr;
+    struct __msgq_t * pmsgq  = (struct __msgq_t *)msgq;
 
-    OSA_assert(hdl->m_initialized == TRUE);
+    msgq_check_arguments2(pmsgq, cnt);
 
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_msgq_used < hdl->m_msgq_cnt) {
-        status |= dlist_get_head(&hdl->m_free_list, (dlist_element_t **)&msgq_node);
-
-        snprintf(msgq_node->m_name, sizeof(msgq_node->m_name) - 1, "%s", name);
-        (*msgq) = (msgq_t)&msgq_node->m_msgq;
-
-        status |= dlist_put_tail(&hdl->m_busy_list, (dlist_element_t *)msgq_node);
-        hdl->m_msgq_used++;
-    } else {
-        status = OSA_ENOENT;
-    }
-
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-
+    return queue2_count(pmsgq->m_queue, cnt);
 }
 
-status_t msgq_mgr_find(const char *name, msgq_t *msgq)
+status_t msgq_close(const char *name, msgq_t *msgq)
 {
-    status_t status = OSA_ENOENT;
-    msgq_node_t *msgq_node  = NULL;
-    msgq_mgr_handle hdl = &glb_msgq_mgr;
+    status_t          status = OSA_SOK;
+    struct __msgq_t * pmsgq  = (struct __msgq_t *)(*msgq);
 
-    OSA_assert(hdl->m_initialized == TRUE);
+    msgq_check_arguments2(msgq, pmsgq);
 
-    (*msgq) =(msgq_t)MSGQ_INVALID_MSGQ;
+    status |= __msgq_mgr_unregister(name, (msgq_t)pmsgq);
 
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_msgq_used > 0) {
+    status |= queue2_delete(&pmsgq->m_queue);
 
-        status = msgq_mgr_internal_find(hdl, name, &msgq_node);
-        if (!OSA_ISERROR(status)) {
-            (*msgq) = (msgq_t)&msgq_node->m_msgq;
-        }
-    } 
+    status |= OSA_memFree(sizeof(struct __msgq_t), pmsgq);
 
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-}
-
-status_t msgq_mgr_unregister(const char *name, msgq_t msgq)
-{
-    status_t status = OSA_ENOENT;
-    msgq_node_t *msgq_node  = NULL;
-    msgq_mgr_handle hdl = &glb_msgq_mgr;
-
-    OSA_assert(hdl->m_initialized == TRUE);
-
-    mutex_lock(&hdl->m_mutex);
-    
-    if (hdl->m_msgq_used > 0) {
-
-        status = msgq_mgr_internal_find(hdl, name, &msgq_node);
-        if (!OSA_ISERROR(status)) {
-            status |= dlist_remove_element(&hdl->m_busy_list, (dlist_element_t *)msgq_node);
-            OSA_assert((&msgq_node->m_msgq) == (msgq_handle)msgq);
-            status |= dlist_put_tail(&hdl->m_free_list, (dlist_element_t *)msgq_node);
-            hdl->m_msgq_used--;
-        }
-    } 
-
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-}
-
-status_t msgq_mgr_deinit(void)
-{
-	int i;
-    Bool need_deinit = FALSE;
-    status_t status = OSA_SOK;
-    msgq_mgr_handle hdl = &glb_msgq_mgr;
-
-    OSA_assert(hdl->m_initialized == TRUE);
-
-    MSGQ_MGR_CRITICAL_ENTER();
-    if (--glb_cur_init == 0) {
-        need_deinit = TRUE;
-    }
-    MSGQ_MGR_CRITICAL_LEAVE();
-
-    if (!need_deinit) {
-        return status;
-    }
-
-    OSA_assert(TRUE == need_deinit);
-
-	for (i = 0; i < hdl->m_msgq_cnt; i++) {
-		status |= msgq_deinit(&(hdl->m_msgqs + i)->m_msgq);
-	}
-	
-    status |= mutex_delete(&hdl->m_mutex);
-
-    if (hdl->m_msgqs != NULL) {
-        OSA_memFree(sizeof(msgq_node_t) * hdl->m_msgq_cnt, hdl->m_msgqs);
-        hdl->m_msgqs = NULL;
-    }
-    hdl->m_initialized = FALSE;
+    (*msgq) = INVALID_HANDLE;
 
     return status;
 }
@@ -581,35 +429,113 @@ status_t msgq_mgr_deinit(void)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
  *  ============================================================================
  */
 static bool
 msgq_mgr_find_match_fxn(dlist_element_t *elem, void *data)
 {
-    return (strncmp(((msgq_node_t *)elem)->m_name,
+    return (strncmp(((struct __msgq_t *)elem)->m_name,
                     (const char *)data,
-                    sizeof(((msgq_node_t *)elem)->m_name)) == 0);
+                    sizeof(((struct __msgq_t *)elem)->m_name)) == 0);
 }
 
 static status_t
-msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_node_t **node)
+__msgq_mgr_internal_find(msgq_mgr_t *msgq_mgr, const char *name, msgq_t *msgq)
 {
     status_t status = OSA_ENOENT;
 
-    (*node) = NULL;
+    (*msgq) = INVALID_HANDLE;
 
-    status = dlist_search_element(&msgq_mgr->m_busy_list, (void *)name,
-                                  (dlist_element_t **)node, msgq_mgr_find_match_fxn);
+    status = dlist_search_element(&msgq_mgr->m_list, (void *)name,
+                                  (dlist_element_t **)msgq, msgq_mgr_find_match_fxn);
 
     if (!OSA_ISERROR(status)) {
         status = OSA_SOK;
     }
 
     return status;
+}
+
+static status_t
+__msgq_mgr_register(const char *name, msgq_t msgq, msgq_attrs_t *attrs)
+{
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    msgq_check_arguments(HANDLE_TO_POINTER(msgq));
+
+    osa_mutex_lock  (pmgr->m_mutex);
+
+    status |= dlist_put_tail(&pmgr->m_list, (dlist_element_t *)msgq);
+
+    osa_mutex_unlock(pmgr->m_mutex);
+
+    return status;
+}
+
+static status_t
+__msgq_mgr_find(const char *name, msgq_t *msgq)
+{
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    msgq_check_arguments(msgq);
+
+    osa_mutex_lock  (pmgr->m_mutex);
+
+    status = __msgq_mgr_internal_find(pmgr, name, msgq);
+
+    osa_mutex_unlock(pmgr->m_mutex);
+
+    return status;
+}
+
+static status_t
+__msgq_mgr_unregister(const char *name, msgq_t msgq)
+{
+    status_t              status = OSA_SOK;
+    struct __msgq_mgr_t * pmgr   = &glb_msgq_mgr;
+
+    msgq_check_arguments(HANDLE_TO_POINTER(msgq));
+
+    osa_mutex_lock  (pmgr->m_mutex);
+
+    status |= dlist_remove_element(&pmgr->m_list, (dlist_element_t *)msgq);
+
+    osa_mutex_unlock(pmgr->m_mutex);
+
+    return status;
+}
+
+static unsigned int
+__msgq_mgr_get_msg_id(void)
+{
+    unsigned int          id;
+    struct __msgq_mgr_t * pmgr = &glb_msgq_mgr;
+
+    osa_mutex_lock  (pmgr->m_mutex);
+
+    id = pmgr->m_msg_id++;
+
+    osa_mutex_unlock(pmgr->m_mutex);
+
+    return id;
+}
+
+static bool
+__msgq_mgr_find_match_fxn(dlist_element_t *elem, void *data)
+{
+    return ((msg_get_msg_size(elem)) == ((unsigned int)data));
+}
+
+static status_t
+__msgq_mgr_msgs_pool_apply_fxn(dlist_element_t *elem, void *data)
+{
+    return OSA_memFree(msg_get_msg_size(elem), elem);
 }
 
 #if defined(__cplusplus)
