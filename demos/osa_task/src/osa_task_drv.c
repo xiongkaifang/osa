@@ -231,15 +231,16 @@ status_t system_init(osa_task_object_t *pobj)
     debug_prm.m_folder = NULL;
 
     osa_debugger_init(&debug_prm);
-    //debugger_setlevel(DBG_DETAILED);
-    osa_debugger_setlevel(DBG_INFO);
+    osa_debugger_setlevel(DBG_DETAILED);
+    //osa_debugger_setlevel(DBG_INFO);
 
     /*
      *  Initialize tasklist.
      */
     DBG(DBG_INFO, GT_NAME, "Initiailze task manager.\n");
-    pobj->m_params.m_tsk_mgr_prm.m_msg_cnt = 10;
-    pobj->m_params.m_tsk_mgr_prm.m_tsk_cnt = 10;
+    pobj->m_params.m_tsk_mgr_prm.m_min_tsk_nums = 3;
+    pobj->m_params.m_tsk_mgr_prm.m_max_tsk_nums = 10;
+    pobj->m_params.m_tsk_mgr_prm.m_max_linger   = 10 * 60;
     status |= task_mgr_init(&pobj->m_params.m_tsk_mgr_prm);
 
     /*
