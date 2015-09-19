@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<vcs_cmds>
+	<cmd id="100" idtxt="IPNC_CMD_LOGON" cmd="logon" desc="Logon the IPNC management console." access="IPNC_CMD_ACCESS_ALL">
+		<arg type="IPNC_CMD_ARG_STRING" tag="u" name="username" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="p" name="password" required="1" />
+	</cmd>
+	<cmd id="101" idtxt="IPNC_CMD_LOGOFF" cmd="logoff" desc="Logoff the IPNC management console." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="101" idtxt="IPNC_CMD_QUIT" cmd="quit" desc="Alias of 'logoff'." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="102" idtxt="IPNC_CMD_USERADD" cmd="useradd" desc="Add an user to the IPNC management console." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_STRING" tag="u" name="username" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="p" name="password" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="n" name="full name" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="a" name="access: admin|video" required="1" />
+	</cmd>
+	<cmd id="103" idtxt="IPNC_CMD_USERMOD" cmd="usermod" desc="Modify an user of the IPNC management console." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_STRING" tag="u" name="username" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="p" name="password" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="n" name="full name" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="a" name="access: admin|video" required="1" />
+	</cmd>
+	<cmd id="104" idtxt="IPNC_CMD_USERLIST" cmd="userlist" desc="List users of the IPNC management console." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+	<cmd id="105" idtxt="IPNC_CMD_CHANGEPWD" cmd="pwd" desc="Change user password." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_STRING" tag="u" name="username" required="1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="p" name="password" required="1" />
+	</cmd>
+	<cmd id="106" idtxt="IPNC_CMD_USERDEL" cmd="userdel" desc="Delete of an user of the IPNC management console." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_STRING" tag="u" name="username" required="1" />
+	</cmd>
+	<cmd id="200" idtxt="IPNC_CMD_REBOOT" cmd="reboot" desc="Reboot the IPNC system." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+	<cmd id="201" idtxt="IPNC_CMD_GET_SYSINFO" cmd="sysinfo" desc="Get the system info." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="202" idtxt="IPNC_CMD_GET_NET_PARAMS" cmd="getnetparams" desc="Get the network parameters." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="203" idtxt="IPNC_CMD_SET_NET_PARAMS" cmd="setnetparams" desc="Set the network parameters." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="ip" name="ip address" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="nm" name="netmask" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="gw" name="gateway ip" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="dhcp" name="dhcp: 1|0" required="0" default_value="-1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="hn" name="hostname" required="0" default_value="NULL" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="dns1" name="DNS 1 ip" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="dns2" name="DNS 2 ip" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="dns3" name="DNS 3 ip" required="0" default_value="0" />
+	</cmd>
+	<cmd id="204" idtxt="IPNC_CMD_GET_TEMPERATURE" cmd="gettemp" desc="Get the temperature of the IPNC." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="205" idtxt="IPNC_CMD_GET_DATETIME" cmd="getdatetime" desc="Get the date/time of the IPNC." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="206" idtxt="IPNC_CMD_SET_DATETIME" cmd="setdatetime" desc="Set the date/time of the IPNC." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_DATETIME" tag="t" name="mmddhhmmCCYY" required="1" />
+	</cmd>
+	<cmd id="207" idtxt="IPNC_CMD_GET_VOLTAGES" cmd="getvoltages" desc="Get the voltages of the IPNC." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="208" idtxt="IPNC_CMD_GET_COLORBAR" cmd="getcolorbar" desc="Gets the colorbar mode." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+	<cmd id="209" idtxt="IPNC_CMD_SET_COLORBAR" cmd="setcolorbar" desc="Sets the colorbar mode." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_BOOLEAN" tag="mode" name="mode: yes|no" required="1" />
+	</cmd>
+	<cmd id="210" idtxt="IPNC_CMD_GET_PEER_IP" cmd="getpeerip" desc="Get the peer (client) IP address." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="211" idtxt="IPNC_CMD_GET_JPEGHEADER" cmd="getjpegheader" desc="Gets the header of jpeg compressed images." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="212" idtxt="IPNC_CMD_START_JPEG" cmd="startjpegoutput" desc="Start outputting jpeg compressed images." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="ip" name="Remote ip address" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="rtp" name="Remote RTP port" required="1" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="rtcp" name="Remote RTCP port" required="0" default_value="0" />
+	</cmd>
+	<cmd id="213" idtxt="IPNC_CMD_STOP_JPEG" cmd="stopjpegoutput" desc="Stop outputting jpeg compressed images." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_STRING" tag="sid" name="session ID" required="1" />
+	</cmd>
+	<cmd id="214" idtxt="IPNC_CMD_GET_DIMS" cmd="getdims" desc="Get video dimension." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="215" idtxt="IPNC_CMD_LIST_STREAMS" cmd="liststreams" desc="List video streams." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="216" idtxt="IPNC_CMD_KILL_STREAM" cmd="killstream" desc="Kill video stream." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_STRING" tag="sid" name="session ID" required="1" />
+	</cmd>
+	<cmd id="217" idtxt="IPNC_CMD_GET_EMBHEADER" cmd="getembheader" desc="Get the embedded JPEG header status." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="218" idtxt="IPNC_CMD_LOCK_MGR" cmd="lockmgr" desc="Lock the device into management mode." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_BOOLEAN" tag="enabled" name="enabled: yes|no" required="1" />
+	</cmd>
+	<cmd id="219" idtxt="IPNC_CMD_KEEPALIVE" cmd="keepalive" desc="Keep the video stream alive." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_STRING" tag="sid" name="Session ID" required="1" />
+		<arg type="IPNC_CMD_ARG_IPADDR" tag="ip" name="Remote ip address" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="rtp" name="Remote RTP port" required="0" default_value="0" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="rtcp" name="Remote RTCP port" required="0" default_value="0" />
+	</cmd>
+	<cmd id="220" idtxt="IPNC_CMD_GETACCESS" cmd="getaccess" desc="Get the access rights of the current user." access="IPNC_CMD_ACCESS_ALL">
+	</cmd>
+	<cmd id="221" idtxt="IPNC_CMD_GETVAB" cmd="getccdvab" desc="Get the CCD VAB voltage." access="IPNC_CMD_ACCESS_TUNING">
+	</cmd>
+	<cmd id="222" idtxt="IPNC_CMD_SETVAB" cmd="setccdvab" desc="Set the CCD VAB voltage." access="IPNC_CMD_ACCESS_TUNING">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vab" name="VAB" required="1" />
+	</cmd>
+	<cmd id="223" idtxt="IPNC_CMD_G_TRANS_VOLS" cmd="getccdtransvols" desc="Get the CCD Transfer voltages." access="IPNC_CMD_ACCESS_TUNING">
+	</cmd>
+	<cmd id="224" idtxt="IPNC_CMD_S_TRANS_VOLS" cmd="setccdtransvols" desc="Set the CCD Transfer voltages." access="IPNC_CMD_ACCESS_TUNING">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vh" name="VH" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vhl" name="VHL" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="rg" name="RG" required="0" default="0" />
+	</cmd>
+	<cmd id="225" idtxt="IPNC_CMD_G_SENSOR_PARAMS" cmd="getsensorparams" desc="Get the sensor parameters." access="IPNC_CMD_ACCESS_TUNING">
+	</cmd>
+	<cmd id="226" idtxt="IPNC_CMD_S_SENSOR_PARAMS" cmd="setsensorparams" desc="Set the sensor parameters." access="IPNC_CMD_ACCESS_TUNING">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="sn" name="Serial Number" required="1" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="hw_id" name="Hardware ID" required="1" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vh" name="VH" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vhl" name="VHL" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="rg" name="RG" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="vab" name="VAB" required="0" default="0" />
+		<arg type="IPNC_CMD_ARG_BOOLEAN" tag="debug" name="Debug: yes|no" required="0" default="0" />
+	</cmd>
+	<cmd id="227" idtxt="IPNC_CMD_SET_SHUTTTER" cmd="setshutter" desc="Set the electronic shutter timing." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="228" idtxt="IPNC_CMD_SET_RAWGAIN" cmd="setrawgain" desc="Set the raw data gain." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value (1-1023, 512 nominal)" required="1" />
+	</cmd>
+	<cmd id="229" idtxt="IPNC_CMD_SEL_PARAMSET" cmd="selectparam" desc="Select parameter set." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="230" idtxt="IPNC_CMD_GET_PARAMSET" cmd="getparams" desc="Get parameter set (struct ipnc_camera_param_set, in base64)." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="idx" name="Index" required="1" />
+	</cmd>
+	<cmd id="231" idtxt="IPNC_CMD_GET_CURRENT_PARAMSET" cmd="getcurrentparams" desc="Get current parameter set (struct ipnc_camera_param_set, in base64)." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="232" idtxt="IPNC_CMD_GET_NUM_PARAMSETS" cmd="getnumparams" desc="Get number of parameter sets." access="IPNC_CMD_ACCESS_VIDEO">
+	</cmd>
+	<cmd id="233" idtxt="IPNC_CMD_SET_PARAMSET" cmd="setparams" desc="Set parameter set." access="IPNC_CMD_ACCESS_VIDEO">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="id" name="parameter index" required="0" default="-1" />
+		<arg type="IPNC_CMD_ARG_STRING" tag="base64" name="struct ipnc_camera_param_set, in base64" required="1" />
+	</cmd>
+	<cmd id="234" idtxt="IPNC_CMD_ENABLE_AUTO_EXP" cmd="enableautoexp" desc="Enable auto exposure." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_BOOLEAN" tag="en" name="Enabled" required="1" />
+	</cmd>
+	<cmd id="235" idtxt="IPNC_CMD_ENABLE_AUTO_WB" cmd="enableautowb" desc="Enable auto white balance." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_BOOLEAN" tag="en" name="Enabled" required="1" />
+	</cmd>
+	<cmd id="236" idtxt="IPNC_CMD_SET_WB" cmd="setwb" desc="Set white balance configurations." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="gain_r" name="Gain R" required="1"/>
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="gain_gr" name="Gain GR" required="1"/>
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="gain_gb" name="Gain GB" required="1"/>
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="gain_b" name="Gain B" required="1"/>
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="offs_r" name="Offset R" required="1"/>
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="offs_gr" name="Offset GR" required="1"/>
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="offs_gb" name="Offset GB" required="1"/>
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="offs_b" name="Offset B" required="1"/>
+	</cmd>
+	<cmd id="237" idtxt="IPNC_CMD_SET_BRIGHTNESS" cmd="setbrightness" desc="Set brightness." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="238" idtxt="IPNC_CMD_SET_CONTRAST" cmd="setcontrast" desc="Set contrast." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="239" idtxt="IPNC_CMD_SET_SHARPNESS" cmd="setsharpness" desc="Set sharpness." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="240" idtxt="IPNC_CMD_SET_GLOBAL_GAIN" cmd="setglobalgain" desc="Set global gain." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="v" name="Value" required="1" />
+	</cmd>	
+	<cmd id="241" idtxt="IPNC_CMD_SET_EXP_COMPENSATION" cmd="setexpcompensation" desc="Set auto exposure compensation." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="242" idtxt="IPNC_CMD_SET_WB_COMPENSATION" cmd="setwbcompensation" desc="Set auto white balance compensation." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="243" idtxt="IPNC_CMD_SET_ISO" cmd="setiso" desc="Set ISO (light sensitivity)." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="244" idtxt="IPNC_CMD_SET_GAMMA" cmd="setgamma" desc="Set gamma.." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="r" name="Gamma R (Q9)" required="1" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="g" name="Gamma G (Q9)" required="1" />
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="b" name="Gamma B (Q9)" required="1" />
+	</cmd>
+	<cmd id="245" idtxt="IPNC_CMD_SET_LM_MODE" cmd="setlmmode" desc="Set light measurment mode." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_UNSIGNED" tag="mode" name="Mode: 0 - average, 1 - centered" required="1" />
+	</cmd>
+	<cmd id="246" idtxt="IPNC_CMD_SET_DARK_CURRENT" cmd="setdarkcurrent" desc="Set CCD dark current." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_SIGNED" tag="v" name="Value" required="1" />
+	</cmd>
+	<cmd id="247" idtxt="IPNC_CMD_SET_CODEC_SETTINGS" cmd="setcodecsettings" desc="Set codec settings." access="IPNC_CMD_ACCESS_ADMIN">
+		<arg type="IPNC_CMD_ARG_STRING" tag="base64" name="struct ipnc_camera_settings, in base64" required="1" />
+	</cmd>
+	<cmd id="248" idtxt="IPNC_CMD_GET_CODEC_SETTINGS" cmd="getcodecsettings" desc="Set codec settings (struct ipnc_camera_settings, in base64)." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+	<cmd id="249" idtxt="IPNC_CMD_DUMP_WORKING_STATUS" cmd="dumpstatus" desc="Dump working status." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+	<cmd id="250" idtxt="IPNC_CMD_WRITE_SETTINGS" cmd="writesettings" desc="Write settings into EEPROM." access="IPNC_CMD_ACCESS_ADMIN">
+	</cmd>
+</vcs_cmds>

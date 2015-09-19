@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<osa_status>
+
+	<status id="100" class="General" type="Success" name="OSA_SOK"      msg="Success" />
+	<status id="101" class="General" type="Error"   name="OSA_EFAIL"    msg="General failure" />
+	<status id="102" class="General" type="Error"   name="OSA_EMEM"     msg="Out of memory" />
+	<status id="103" class="General" type="Error"   name="OSA_ENOENT"   msg="No such entry" />
+	<status id="104" class="General" type="Error"   name="OSA_EARGS"    msg="Invalid argument" />
+	<status id="105" class="General" type="Error"   name="OSA_EINVAL"   msg="Invalid value" />
+	<status id="106" class="General" type="Error"   name="OSA_EEXIST"   msg="Entry already eixst" />
+	<status id="107" class="General" type="Error"   name="OSA_ERES"     msg="No enough resource" />
+	<status id="108" class="General" type="Error"   name="OSA_EPERM"    msg="Operation no permitted" />
+
+	<status id="200" class="Network" type="Error"   name="OSA_ECONNECT" msg="Network connect error" />
+
+	<status id="300" class="Io"      type="Error"   name="OSA_ETIMEOUT" msg="Timed out" />
+	<status id="301" class="Io"      type="Warning" name="OSA_EEOF"     msg="Reach the end of file" />
+
+	<status id="600" class="App"     type="Warning" name="OSA_ENOTIPL"  msg="Command not implemented" />
+	<status id="601" class="App"     type="Error"   name="OSA_EBADCMD"  msg="Command not supported" />
+
+</osa_status>
