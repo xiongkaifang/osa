@@ -101,7 +101,7 @@ extern "C" {
  */
 extern task_object_t glb_tsk_obj5;
 
-extern status_t tsk_drv_test5_main(void *ud, task_t tsk, msg_t **msg);
+extern status_t tsk_drv_test5_main(task_t tsk, msg_t **msg, void *ud);
 
 #if defined(__cplusplus)
 }

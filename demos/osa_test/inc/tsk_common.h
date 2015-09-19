@@ -67,7 +67,7 @@ extern "C" {
  *  @Field:         Field2 member
  *  ----------------------------------------------------------------------------
  */
-typedef unsigned int HANDLE;
+//typedef unsigned int HANDLE;
 
 /*
  *  --------------------- Public function declaration --------------------------

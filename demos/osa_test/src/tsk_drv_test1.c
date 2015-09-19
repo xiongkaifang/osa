@@ -127,7 +127,7 @@ static status_t task_do_initialize(HANDLE hdl, task_t tsk, msg_t *msg);
 
 static status_t task_do_exit(HANDLE hdl, task_t tsk, msg_t *msg);
 
-static status_t task_do_synchronize(void *ud, task_t tsk, msg_t *msg);
+static status_t task_do_synchronize(task_t tsk, msg_t *msg, void *ud);
 
 static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg);
 
@@ -165,7 +165,7 @@ static status_t task_external_main(void *ud, task_t tsk, msg_t **msg);
  *
  *  ============================================================================
  */
-status_t tsk_drv_test1_main(void *ud, task_t tsk, msg_t **msg)
+status_t tsk_drv_test1_main(task_t tsk, msg_t **msg, void *ud)
 {
     return task_external_main(ud, tsk, msg);
 }
@@ -206,7 +206,7 @@ static status_t task_do_exit(HANDLE hdl, task_t tsk, msg_t *msg)
     return status;
 }
 
-static status_t task_do_synchronize(void *ud, task_t tsk, msg_t *msg)
+static status_t task_do_synchronize(task_t tsk, msg_t *msg, void *ud)
 {
     status_t status = OSA_SOK;
     task_driver_test1_object_t * tsk_hdl = NULL;
@@ -269,9 +269,9 @@ static status_t task_do_process(HANDLE hdl, task_t tsk, msg_t **msg)
         fprintf(stderr, "task_do_process: TASK[0x%x]: %s is running...\n", tsk, tsk_hdl->m_name);
 #endif  // if defined TASK_MGR_DEBUG
 
-        sleep(1);
+        usleep(1000);
 
-        status |= task_synchronize((void *)hdl, tsk, task_do_synchronize, msg_cnt);
+        status |= task_synchronize(tsk, task_do_synchronize, msg_cnt, (void *)hdl);
     }
 
     return status;

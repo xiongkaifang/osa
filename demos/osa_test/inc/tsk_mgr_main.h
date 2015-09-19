@@ -100,7 +100,6 @@ struct __task_mgr_object_t
 
     task_t                  m_cur_tsk;
 
-    mutex_t                 m_mutex;
     task_object_t         * m_tsklists[TASK_MGR_TSK_MAX];
 };
 

@@ -37,7 +37,7 @@
 #include "tsk_drv_test3.h"
 #include "tsk_drv_test4.h"
 #include "tsk_drv_test5.h"
-#include "debug.h"
+#include "osa_debugger.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -114,6 +114,8 @@ static const char * submenu[] = {
     "  'p'    Stop task5\n",
 };
 
+static const char * const GT_NAME  = "osa_tsk_drv";
+static const char * const TSK_NAME = "osa_tsk_drv";
 /*
  *  --------------------- Local function forward declaration -------------------
  */
@@ -173,7 +175,8 @@ static void tsk_mgr_daemon_signal_handler(int sig)
     if (sig == SIGINT) {
         fprintf(stderr, "SIGINT signal caught, system shutdown now...\n");
 
-        task_mgr_synchronize(glb_tsk_mgr_obj.m_tsklists[TASK_MGR_TSK0], TASK_CMD_EXIT, NULL, 0, 0);
+        glb_tsk_mgr_exit = 1;
+        //task_mgr_synchronize(glb_tsk_mgr_obj.m_tsklists[TASK_MGR_TSK0], TASK_CMD_EXIT, NULL, 0, 0);
     } else {
         fprintf(stderr, "Invalid signal caught\n");
     }
@@ -247,17 +250,24 @@ status_t system_init(task_mgr_handle hdl)
     /*
      *  Initialize debug module.
      */
-    fprintf(stderr, "system_init: Initiailze debug module.\n");
-    debugger_init(stderr, NULL);
-    //debugger_setlevel(DBG_DETAILED);
-    debugger_setlevel(DBG_INFO);
+    osa_debugger_prm_t debug_prm;
+
+    debug_prm.m_debug_level = DBG_INFO;
+    debug_prm.m_out = stderr;
+    debug_prm.m_name = (char *)TSK_NAME;
+    debug_prm.m_folder = NULL;
+
+    osa_debugger_init(&debug_prm);
+    osa_debugger_setlevel(DBG_DETAILED);
+    //osa_debugger_setlevel(DBG_INFO);
 
     /*
      *  Initialize tasklist.
      */
     fprintf(stderr, "system_init: Initiailze task manager.\n");
-    hdl->m_params.m_tsk_mgr_prm.m_msg_cnt = 10;
-    hdl->m_params.m_tsk_mgr_prm.m_tsk_cnt = 10;
+    hdl->m_params.m_tsk_mgr_prm.m_min_tsk_nums = 3;
+    hdl->m_params.m_tsk_mgr_prm.m_max_tsk_nums = 64;
+    hdl->m_params.m_tsk_mgr_prm.m_max_linger   = 60 * 60;
     status |= task_mgr_init(&hdl->m_params.m_tsk_mgr_prm);
 
     /*
@@ -288,8 +298,8 @@ status_t system_deinit(task_mgr_handle hdl)
     /*
      *  Finalize debug module.
      */
-    fprintf(stderr, "system_deinit: De-initialize debug module.\n");
-    debugger_destroy();
+    DBG(DBG_INFO, GT_NAME, "De-initialize osa debug module.\n");
+    osa_debugger_deinit();
 
     OSA_assert(OSA_SOK == status);
 
@@ -325,10 +335,10 @@ status_t task_daemon_init(task_mgr_handle hdl)
 {
     status_t status = OSA_SOK;
 
-    status |= mutex_create(&hdl->m_mutex);
+    //status |= mutex_create(&hdl->m_mutex);
 
     hdl->m_tsk_cnt = TASK_MGR_TSK_MAX;
-    hdl->m_cur_cnt = 6;
+    hdl->m_cur_cnt = 5;
     
     hdl->m_tsklists[TASK_MGR_TSK0] = &glb_tsk_mgr;
     hdl->m_tsklists[TASK_MGR_TSK1] = &glb_tsk_obj1;
@@ -350,7 +360,7 @@ status_t task_daemon_init(task_mgr_handle hdl)
     /*
      *  Register osa timer events.
      */
-#if 1
+#if 0
     status |= osa_timer_register(&hdl->m_event1_id, 1000, &hdl->m_event1);
     fprintf(stderr, "Event1 id :%d.\n", hdl->m_event1_id);
     status |= osa_timer_register(&hdl->m_event2_id, 2000, &hdl->m_event2);
@@ -393,7 +403,7 @@ status_t task_daemon_run(task_mgr_handle hdl)
         DBG(DBG_INFO, "task_daemon_run: task daemon system is running ...\n");
 #endif  // if defined TASK_MGR_DEBUG
 
-#if 0
+#if 1
         ch = task_mgr_daemon_print_menu(hdl);
 
         if (ch == '\n') {
@@ -403,9 +413,9 @@ status_t task_daemon_run(task_mgr_handle hdl)
         switch(ch)
         {
             case '1':
-                DBG(DBG_WARNING, "task_daemon_run: instrument begin.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: instrument begin.\n");
                 status = task_mgr_task_instruments();
-                DBG(DBG_WARNING, "task_daemon_run: instrument end.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: instrument end.\n");
                 break;
 
             case '2':
@@ -413,15 +423,15 @@ status_t task_daemon_run(task_mgr_handle hdl)
                 break;
 
             case '3':
-                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: Not used.\n");
                 break;
 
             case '4':
-                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: Not used.\n");
                 break;
 
             case '5':
-                DBG(DBG_WARNING, "task_daemon_run: Not used.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: Not used.\n");
                 break;
 
             case 't':
@@ -429,16 +439,16 @@ status_t task_daemon_run(task_mgr_handle hdl)
                 break;
 
             case 'q':
-                DBG(DBG_WARNING, "task_daemon_run: Quit from this task daemon.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: Quit from this task daemon.\n");
                 glb_tsk_mgr_exit = 1;
                 break;
 
             default:
-                DBG(DBG_WARNING, "task_daemon_run: Invalid choice.\n");
+                DBG(DBG_WARNING, GT_NAME, "task_daemon_run: Invalid choice.\n");
                 break;
         }
 #endif
-#if 1
+#if 0
         //status = task_check_msg(hdl->m_tsklists[TASK_MGR_TSK0]->m_task, &msg, MSG_TYPE_CMD);
         status = task_wait_msg(hdl->m_tsklists[TASK_MGR_TSK0]->m_task, &msg, MSG_TYPE_CMD);
 
@@ -468,7 +478,7 @@ status_t task_daemon_stop(task_mgr_handle hdl)
     /*
      *  Unregister osa timer events.
      */
-#if 1
+#if 0
     status |= osa_timer_unregister(hdl->m_event1_id);
     status |= osa_timer_unregister(hdl->m_event2_id);
 #endif
@@ -492,7 +502,7 @@ status_t task_daemon_exit(task_mgr_handle hdl)
     
     status |= task_daemon_task_delete(hdl);
 
-    status |= mutex_delete(&hdl->m_mutex);
+    //status |= mutex_delete(&hdl->m_mutex);
 
     return status;
 }
@@ -536,7 +546,7 @@ tsk_mgr_daemon_process_msg(task_mgr_handle hdl, task_t tsk, msg_t *msg)
     switch(msg_get_cmd(msg))
     {
         case TASK_CMD_EXIT:
-            DBG(DBG_INFO, "tsk_mgr_daemon_process_msg: EXIT cmd received\n");
+            DBG(DBG_INFO, GT_NAME, "tsk_mgr_daemon_process_msg: EXIT cmd received\n");
             task_set_state(tsk, TASK_STATE_EXIT);
             break;
 
