@@ -7,19 +7,23 @@
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-16
  *
  *  @Description:   The osa task manager.
- *	
  *
- *  @Version:	    v1.0
  *
- *  @Function List:  //	主要函数及功能
- *	    1.  －－－－－
- *	    2.  －－－－－
+ *  @Version:       v1.0
  *
- *  @History:	     //	历史修改记录
+ *  @Function List: // 主要函数及功能
+ *      1.  －－－－－
+ *      2.  －－－－－
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  @History:       // 历史修改记录
+ *
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2013-04-16     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2015-09-19     v1.2         1. Delete msgs pool.
+ *                                              2. Add task_mgr_check_arguments
+ *                                                 to check arguments.
  *
  *  ============================================================================
  */
@@ -50,15 +54,13 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define TASK_MGR_CRITICAL_ENTER()           \
-    do {                                    \
-        mutex_lock(&glb_tsk_mgr_mutex);     \
-    } while (0)
+#define TASK_MGR_TASK_NAME      ("TASK_MGR_TSK")
 
-#define TASK_MGR_CRITICAL_LEAVE()           \
-    do {                                    \
-        mutex_unlock(&glb_tsk_mgr_mutex);   \
-    } while (0)
+#define TASK_MGR_TASK_MIN       (3)
+#define TASK_MGR_TASK_MAX       (32)
+#define TASK_MGR_TASK_LINGER    (30 * 60)
+
+#define task_mgr_check_arguments(arg)   osa_check_arguments(arg)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -74,22 +76,18 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __task_mgr_t; typedef struct __task_mgr_t task_mgr_t;
-struct __task_mgr_t
+enum __task_mgr_cmd_t; typedef enum __task_mgr_cmd_t task_mgr_cmd_t;
+enum __task_mgr_cmd_t
 {
-    DLIST_ELEMENT_RESERVED;
-    unsigned int    m_initialized;
-    unsigned int    m_msg_id;
-    unsigned short  m_msg_cnt;
-    unsigned short  m_tsk_cnt;
-    msg_t         * m_msgs;
-    mutex_t         m_mutex;
-    dlist_t         m_tsklists;
-    dlist_t         m_free_list;
-    task_object_t   m_mgr_tsk;
+    TASK_MGR_CMD_BASE                = TASK_CMD_MAX      + 1,
+    TASK_MGR_CMD_REGISTER_TASK       = TASK_MGR_CMD_BASE + 1,
+    TASK_MGR_CMD_START_TASK          = TASK_MGR_CMD_BASE + 2,
+    TASK_MGR_CMD_STOP_TASK           = TASK_MGR_CMD_BASE + 3,
+    TASK_MGR_CMD_UNREGISTER_TASK     = TASK_MGR_CMD_BASE + 4,
+    TASK_MGR_CMD_FIND_TASK           = TASK_MGR_CMD_BASE + 5,
+    TASK_MGR_CMD_TASK_INSTRUMENTS    = TASK_MGR_CMD_BASE + 6,
+    TASK_MGR_CMD_THDPOOL_INSTRUMENTS = TASK_MGR_CMD_BASE + 7,
 };
-
-typedef struct __task_mgr_t * task_mgr_handle;
 
 struct __task_mgr_find_prm_t;
 typedef struct __task_mgr_find_prm_t task_mgr_find_prm_t;
@@ -97,6 +95,18 @@ struct __task_mgr_find_prm_t
 {
     unsigned char * m_name;     //  [IN]
     task_object_t * m_task;     //  [OUT]
+};
+
+struct __task_mgr_t; typedef struct __task_mgr_t task_mgr_t;
+struct __task_mgr_t
+{
+    DLIST_ELEMENT_RESERVED;
+
+    unsigned int    m_initialized;
+    unsigned int    m_tsk_cnt;
+    osa_mutex_t     m_mutex;
+    dlist_t         m_tsklists;
+    task_object_t   m_tsk_obj;
 };
 
 /*
@@ -110,21 +120,28 @@ struct __task_mgr_find_prm_t
  * -----------------------------------------------------------------------------
  */
 static task_mgr_prm_t glb_tsk_mgr_prm  = {
-    .m_msg_cnt    = TASK_MGR_MSG_MAX,
-    .m_tsk_cnt    = TASK_MGR_TSK_MAX
+    .m_min_tsk_nums = TASK_MGR_TASK_MIN,
+    .m_max_tsk_nums = TASK_MGR_TASK_MAX,
+    .m_max_linger   = TASK_MGR_TASK_LINGER
 };
 
-static task_mgr_t glb_tsk_mgr_obj = {
-    .m_initialized = FALSE,
-    .m_msg_id = 0,
-    .m_mgr_tsk = {
-        .m_name = TASK_MGR_TSK_NAME,
+static task_mgr_t     glb_tsk_mgr_obj = {
+    .m_initialized  = FALSE,
+    .m_tsk_obj = {
+        .m_name = TASK_MGR_TASK_NAME,
     }
 };
 
 static unsigned int glb_cur_init = 0;
 
-OSA_DECLARE_AND_INIT_MUTEX(glb_tsk_mgr_mutex);
+static const char * const STATE_STR[TASK_STATE_PROC + 2] = {
+    "Regi",
+    "Init",
+    "Exit",
+    "N/A ",
+    "Proc",
+    "NULL"
+};
 
 /*
  *  --------------------- Local function forward declaration -------------------
@@ -132,29 +149,29 @@ OSA_DECLARE_AND_INIT_MUTEX(glb_tsk_mgr_mutex);
 
 /** ============================================================================
  *
- *  @Function:	    Local function forward declaration.
+ *  @Function:      Local function forward declaration.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
@@ -165,59 +182,42 @@ static status_t
 __task_mgr_env_deinitialize(void);
 
 static status_t
-__task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm);
+__task_mgr_initialize(task_mgr_t *ptskmgr, task_mgr_prm_t *prm);
 
 static status_t
-__task_mgr_alloc_msg(task_mgr_t *tskmgr, msg_t **msg);
+__task_mgr_register_task(task_mgr_t *ptskmgr, task_object_t *ptsk);
 
 static status_t
-__task_mgr_free_msg(task_mgr_t *tskmgr, msg_t *msg);
+__task_mgr_start_task(task_mgr_t *ptskmgr, task_object_t *ptsk);
 
 static status_t
-__task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk);
+__task_mgr_stop_task(task_mgr_t *ptskmgr, task_object_t *ptsk);
 
 static status_t
-__task_mgr_start_tsk(task_mgr_handle hdl, task_object_t *tsk);
+__task_mgr_unregister_task(task_mgr_t *ptskmgr, task_object_t *ptsk);
 
 static status_t
-__task_mgr_stop_tsk(task_mgr_handle hdl, task_object_t *tsk);
+__task_mgr_deinitialize(task_mgr_t *ptskmgr);
+
+static status_t __task_mgr_internal_main(task_t tsk, msg_t **msg, void *userdata);
 
 static status_t
-__task_mgr_unregister_tsk(task_mgr_handle hdl, task_object_t *tsk);
-
-static status_t
-__task_mgr_deinitialize(task_mgr_t *tskmgr);
-
-static status_t __task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg);
-
-static status_t
-__task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
+__task_mgr_broadcast(task_mgr_t *ptskmgr, unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
 
 static status_t
 __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, unsigned int size, unsigned int flags);
 
 static status_t
-__task_mgr_task_instruments(task_mgr_t *tskmgr);
+__task_mgr_task_instruments(task_mgr_t *ptskmgr);
 
 static status_t
-__task_mgr_thdpool_instruments(task_mgr_t *tskmgr);
+__task_mgr_thdpool_instruments(task_mgr_t *ptskmgr);
 
 static status_t
-__task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm);
+__task_mgr_find_task(task_mgr_t *ptskmgr, task_mgr_find_prm_t *prm);
 
-static inline unsigned int
-__task_mgr_get_msg_id(task_mgr_t *tskmgr)
-{
-    unsigned int id;
-
-    mutex_lock(&tskmgr->m_mutex);
-
-    id = tskmgr->m_msg_id++;
-
-    mutex_unlock(&tskmgr->m_mutex);
-
-    return id;
-}
+static bool
+__task_mgr_find_match_fxn2(dlist_element_t *elem, void *data);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -225,59 +225,70 @@ __task_mgr_get_msg_id(task_mgr_t *tskmgr)
 
 /** ============================================================================
  *
- *  @Function:	    Public function definition.
+ *  @Function:      Public function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    //调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
 status_t task_mgr_init(task_mgr_prm_t *prm)
 {
-    status_t status = OSA_SOK;
-	
-	/* Initialize task manager object */
-    TASK_MGR_CRITICAL_ENTER();
+    status_t     status = OSA_SOK;
+    task_mgr_t * ptskmgr = (task_mgr_t *)&glb_tsk_mgr_obj;
 
-	if (glb_cur_init++ == 0) {
-		status = __task_mgr_initialize(&glb_tsk_mgr_obj, prm);
-	}
+    if (glb_cur_init++ == 0) {
 
-    TASK_MGR_CRITICAL_LEAVE();
-	
-	return status;
+        if (prm == NULL) {
+            prm = &glb_tsk_mgr_prm;
+        }
+
+        status = __task_mgr_initialize(ptskmgr, prm);
+    }
+
+    return status;
 }
 
-status_t task_mgr_register(task_object_t *tsk)
+status_t task_mgr_register(task_object_t *ptsk)
 {
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_CREATE_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    task_mgr_check_arguments(ptsk);
+
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_REGISTER_TASK,
+                                  ptsk, sizeof(*ptsk), MSG_FLAGS_WAIT_ACK);
 }
 
-status_t task_mgr_start(task_object_t *tsk)
+status_t task_mgr_start(task_object_t *ptsk)
 {
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    task_mgr_check_arguments(ptsk);
+
 #if 0
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_START_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_START_TASK,
+                                  ptsk, sizeof(*ptsk), MSG_FLAGS_WAIT_ACK);
 #else
     /*
      *  Modified by: xiong-kaifang.
@@ -290,15 +301,20 @@ status_t task_mgr_start(task_object_t *tsk)
      *      because task manager will be blocked if we do that recursion.
      *
      */
-    return __task_mgr_start_tsk(&glb_tsk_mgr_obj, tsk);
+    return __task_mgr_start_task(ptskmgr, ptsk);
 #endif
 }
 
-status_t task_mgr_stop(task_object_t *tsk)
+status_t task_mgr_stop(task_object_t *ptsk)
 {
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    task_mgr_check_arguments(ptsk);
+
 #if 0
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_STOP_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_STOP_TASK,
+                                  tsk, sizeof(*tsk), MSG_FLAGS_WAIT_ACK);
 #else
     /*
      *  Modified by: xiong-kaifang.
@@ -311,54 +327,35 @@ status_t task_mgr_stop(task_object_t *tsk)
      *      because task manager will be blocked if we do that recursion.
      *
      */
-    return __task_mgr_stop_tsk(&glb_tsk_mgr_obj, tsk);
+    return __task_mgr_stop_task(ptskmgr, ptsk);
 #endif
-}
-
-status_t task_mgr_unregister(task_object_t *tsk)
-{
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_DELETE_TASK, tsk, sizeof(task_object_t), MSG_FLAGS_WAIT_ACK);
 }
 
 status_t task_mgr_broadcast(unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    return __task_mgr_broadcast(&glb_tsk_mgr_obj, cmd, prm, size, flags);
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    return __task_mgr_broadcast(ptskmgr, cmd, prm, size, flags);
 }
 
-status_t task_mgr_synchronize(task_object_t *tsk, unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
+status_t task_mgr_synchronize(task_object_t *ptsk, unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    return __task_mgr_synchronize(tsk->m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, cmd, prm, size, flags);
-}
+    task_mgr_t *ptskmgr = &glb_tsk_mgr_obj;
 
-static bool
-__task_mgr_find_match_fxn2(dlist_element_t *elem, void *data)
-{
-    bool is_found = false;
-    status_t status = OSA_ENOENT;
-    task_object_t *ptsk = (task_object_t *)elem;
+    task_mgr_check_arguments(ptsk);
 
-    if (ptsk->m_find != NULL) {
-        status = (*ptsk->m_find)(ptsk->m_userdata, *(unsigned short *)data, NULL);
-    }
-
-    if (!OSA_ISERROR(status)) {
-        is_found = true;
-    }
-
-    return is_found;
+    return __task_mgr_synchronize(ptsk->m_task, ptskmgr->m_tsk_obj.m_task, cmd, prm, size, flags);
 }
 
 status_t task_mgr_synchronize2(unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    status_t status = OSA_SOK;
-    task_mgr_t *tskmgr = &glb_tsk_mgr_obj;
-    task_object_t *ptsk = NULL;
+    status_t        status  = OSA_SOK;
+    task_mgr_t    * ptskmgr = &glb_tsk_mgr_obj;
+    task_object_t * ptsk    = NULL;
 
-    mutex_lock(&tskmgr->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_search_element(&tskmgr->m_tsklists, (void *)&cmd,
+    status = dlist_search_element(&ptskmgr->m_tsklists, (void *)&cmd,
                                  (dlist_element_t **)&ptsk, __task_mgr_find_match_fxn2);
     if (!OSA_ISERROR(status)) {
         status = OSA_SOK;
@@ -366,29 +363,42 @@ status_t task_mgr_synchronize2(unsigned short cmd, void *prm, unsigned int size,
         status = OSA_ENOENT;
     }
 
-    mutex_unlock(&tskmgr->m_mutex);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
-    if (OSA_ISERROR(status)) {
-        return status;
+    if (!OSA_ISERROR(status)) {
+        status = task_mgr_synchronize(ptsk, cmd, prm, size, flags);
     }
 
-    return task_mgr_synchronize(ptsk, cmd, prm, size, flags);
+    return status;
+}
+
+status_t task_mgr_unregister(task_object_t *ptsk)
+{
+    task_mgr_t *ptskmgr = &glb_tsk_mgr_obj;
+
+    task_mgr_check_arguments(ptsk);
+
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_UNREGISTER_TASK,
+                                  ptsk, sizeof(*ptsk), MSG_FLAGS_WAIT_ACK);
 }
 
 status_t task_mgr_find(const char *name, task_object_t **ptsk)
 {
-    status_t status = OSA_SOK;
+    status_t     status  = OSA_SOK;
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
 
     (*ptsk) = NULL;
 
-    /* TODO */
+    /* Find the task in the task mgr */
     task_mgr_find_prm_t prm;
 
     prm.m_name = (unsigned char *)name;
     prm.m_task = NULL;
 
-    status = __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_FIND_TASK, &prm, sizeof(prm), MSG_FLAGS_WAIT_ACK);
+    status = __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                    ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_FIND_TASK,
+                                    &prm, sizeof(prm), MSG_FLAGS_WAIT_ACK);
 
     if (!OSA_ISERROR(status)) {
         (*ptsk) = prm.m_task;
@@ -399,32 +409,33 @@ status_t task_mgr_find(const char *name, task_object_t **ptsk)
 
 status_t task_mgr_task_instruments(void)
 {
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_TASK_INSTRUMENTS, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_TASK_INSTRUMENTS,
+                                  NULL, 0, MSG_FLAGS_WAIT_ACK);
 }
 
 status_t task_mgr_thdpool_instruments(void)
 {
-    return __task_mgr_synchronize(glb_tsk_mgr_obj.m_mgr_tsk.m_task,
-            glb_tsk_mgr_obj.m_mgr_tsk.m_task, TASK_MGR_CMD_THDPOOL_INSTRUMENTS, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
+
+    return __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                  ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_THDPOOL_INSTRUMENTS,
+                                  NULL, 0, MSG_FLAGS_WAIT_ACK);
 }
 
 status_t task_mgr_deinit(void)
 {
-    status_t status = OSA_SOK;
-	
-	/* Deintialize task manager object */
-    TASK_MGR_CRITICAL_ENTER();
+    status_t     status  = OSA_SOK;
+    task_mgr_t * ptskmgr = &glb_tsk_mgr_obj;
 
-	if (--glb_cur_init == 0) {
-		status = __task_mgr_deinitialize(&glb_tsk_mgr_obj);
-	}
+    if (--glb_cur_init == 0) {
+        status = __task_mgr_deinitialize(ptskmgr);
+    }
 
-    TASK_MGR_CRITICAL_LEAVE();
-	
-	return status;
+    return status;
 }
-
 
 /*
  *  --------------------- Local function definition ----------------------------
@@ -432,23 +443,25 @@ status_t task_mgr_deinit(void)
 
 /** ============================================================================
  *
- *  @Function:	    Local function definition.
+ *  @Function:      Local function definition.
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
  *  ============================================================================
  */
 static status_t
 __task_mgr_env_initialize(task_mgr_prm_t *prm)
 {
-    status_t status = OSA_SOK;
-    msgq_mgr_prm_t msgq_mgr_prm;
+    status_t             status = OSA_SOK;
+    msgq_mgr_prm_t       msgq_mgr_prm;
     mailbox_system_prm_t mbx_sys_prm;
-    tasklist_params_t tsklist_prm;
+    tasklist_params_t    tsklist_prm;
 
-    msgq_mgr_prm.m_msgq_cnt = prm->m_tsk_cnt * 2;
-    mbx_sys_prm.m_mbx_cnt   = prm->m_tsk_cnt;
-    tsklist_prm.m_tsk_cnt   = prm->m_tsk_cnt;
+    msgq_mgr_prm.m_msgq_cnt    = prm->m_max_tsk_nums * 2;
+    mbx_sys_prm.m_mbx_cnt      = prm->m_max_tsk_nums;
+    tsklist_prm.m_min_tsk_nums = prm->m_min_tsk_nums;
+    tsklist_prm.m_max_tsk_nums = prm->m_max_tsk_nums;
+    tsklist_prm.m_max_linger   = prm->m_max_linger;
 
     status |= msgq_mgr_init(&msgq_mgr_prm);
 
@@ -476,9 +489,9 @@ __task_mgr_env_deinitialize(void)
 }
 
 static status_t
-__task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
+__task_mgr_initialize(task_mgr_t *ptskmgr, task_mgr_prm_t *prm)
 {
-    int i;
+    int      i;
 	status_t status = OSA_SOK;
 
     /*
@@ -489,99 +502,59 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
         return status;
     }
 
-    tskmgr->m_msg_id  = 0;
-    tskmgr->m_msg_cnt = prm->m_msg_cnt;
-    tskmgr->m_tsk_cnt = 0;
-    tskmgr->m_msgs    = NULL;
+    status = osa_mutex_create(&ptskmgr->m_mutex);
 
-    status = mutex_create(&tskmgr->m_mutex);
-
-    status = dlist_init(&tskmgr->m_tsklists);
-    status = dlist_init(&tskmgr->m_free_list);
-
-    /* Allocate msgs */
-    status = OSA_memAlloc(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t **)&tskmgr->m_msgs);
-    if (OSA_ISERROR(status)) {
-        mutex_delete(&tskmgr->m_mutex);
-        __task_mgr_env_deinitialize();
-        return status;
-    }
-
-    for (i = 0; i < tskmgr->m_msg_cnt; i++) {
-        status = dlist_initialize_element((dlist_element_t *)(tskmgr->m_msgs + i));
-        status = dlist_put_tail(&tskmgr->m_free_list, (dlist_element_t *)(tskmgr->m_msgs + i));
-    }
+    status = dlist_init(&ptskmgr->m_tsklists);
 
     /* Register task manager */
-#if 0
-    snprintf(tskmgr->m_mgr_tsk.m_name,
-            sizeof(tskmgr->m_mgr_tsk.m_name) - 1, "%s", TASK_MGR_TSK_NAME);
-#endif
-    tskmgr->m_mgr_tsk.m_main       = __task_mgr_internal_main;
-    tskmgr->m_mgr_tsk.m_pri        = 0;
-    tskmgr->m_mgr_tsk.m_stack_size = 0;
-    tskmgr->m_mgr_tsk.m_init_state = 0;
-    tskmgr->m_mgr_tsk.m_userdata   = (void *)tskmgr;
+    ptskmgr->m_tsk_obj.m_name       = TASK_MGR_TASK_NAME;
+    ptskmgr->m_tsk_obj.m_main       = __task_mgr_internal_main;
+    ptskmgr->m_tsk_obj.m_pri        = 0;
+    ptskmgr->m_tsk_obj.m_stack_size = 0;
+    ptskmgr->m_tsk_obj.m_init_state = 0;
+    ptskmgr->m_tsk_obj.m_userdata   = (void *)ptskmgr;
 
-    status = __task_mgr_register_tsk(tskmgr, &tskmgr->m_mgr_tsk);
-#if 0
-    status = task_create(tskmgr->m_mgr_tsk.m_name,
-                         tskmgr->m_mgr_tsk.m_main,
-                         tskmgr->m_mgr_tsk.m_pri,
-                         tskmgr->m_mgr_tsk.m_stack_size,
-                         tskmgr->m_mgr_tsk.m_init_state,
-                         tskmgr->m_mgr_tsk.m_userdata,
-                         &tskmgr->m_mgr_tsk.m_task
-                        );
-#endif
+    status = __task_mgr_register_task(ptskmgr, &ptskmgr->m_tsk_obj);
+
     if (OSA_ISERROR(status)) {
-        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
-        tskmgr->m_msgs = NULL;
-        mutex_delete(&tskmgr->m_mutex);
+        osa_mutex_delete(&ptskmgr->m_mutex);
         __task_mgr_env_deinitialize();
         return status;
     }
 
     /* Send INIT cmd */
-    status = __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-            tskmgr->m_mgr_tsk.m_task, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    status = __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                    ptskmgr->m_tsk_obj.m_task, TASK_CMD_INIT,
+                                    NULL, 0, MSG_FLAGS_WAIT_ACK);
     if (OSA_ISERROR(status)) {
-        __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-                tskmgr->m_mgr_tsk.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+        __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                               ptskmgr->m_tsk_obj.m_task, TASK_CMD_EXIT,
+                               NULL, 0, MSG_FLAGS_WAIT_ACK);
 
-        __task_mgr_unregister_tsk(tskmgr, &tskmgr->m_mgr_tsk);
+        __task_mgr_unregister_task(ptskmgr, &ptskmgr->m_tsk_obj);
 
-        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
-        tskmgr->m_msgs = NULL;
-        mutex_delete(&tskmgr->m_mutex);
+        osa_mutex_delete(&ptskmgr->m_mutex);
         __task_mgr_env_deinitialize();
+
         return status;
     }
 
     /* Send PROC cmd */
-    status = __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-            tskmgr->m_mgr_tsk.m_task, TASK_CMD_PROC, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    status = __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+            ptskmgr->m_tsk_obj.m_task, TASK_CMD_PROC, NULL, 0, MSG_FLAGS_WAIT_ACK);
     if (OSA_ISERROR(status)) {
-        __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-                tskmgr->m_mgr_tsk.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+        __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                               ptskmgr->m_tsk_obj.m_task, TASK_CMD_EXIT,
+                               NULL, 0, MSG_FLAGS_WAIT_ACK);
 
-        __task_mgr_unregister_tsk(tskmgr, &tskmgr->m_mgr_tsk);
+        __task_mgr_unregister_task(ptskmgr, &ptskmgr->m_tsk_obj);
 
-        OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
-        tskmgr->m_msgs = NULL;
-        mutex_delete(&tskmgr->m_mutex);
+        osa_mutex_delete(&ptskmgr->m_mutex);
         __task_mgr_env_deinitialize();
         return status;
     }
 
-#if 0
-    /* Add task manager itself to tasklists */
-    status = dlist_initialize_element((dlist_element_t *)&tskmgr->m_mgr_tsk);
-    status = dlist_put_tail(&tskmgr->m_tsklists, (dlist_element_t *)&tskmgr->m_mgr_tsk);
-
-    tskmgr->m_tsk_cnt = 1;
-#endif
-    tskmgr->m_initialized = TRUE;
+    ptskmgr->m_initialized = TRUE;
 
     OSA_assert(OSA_SOK == status);
 
@@ -589,45 +562,9 @@ __task_mgr_initialize(task_mgr_t *tskmgr, task_mgr_prm_t *prm)
 }
 
 static status_t
-__task_mgr_alloc_msg(task_mgr_t *tskmgr, msg_t **msg)
+__task_mgr_deinitialize(task_mgr_t *ptskmgr)
 {
-    status_t status = OSA_ENOENT;
-
-    (*msg) = NULL;
-
-    mutex_lock(&tskmgr->m_mutex);
-
-    if (!dlist_is_empty(&tskmgr->m_free_list)) {
-        status = dlist_get_head(&tskmgr->m_free_list, (dlist_element_t **)msg);
-
-        OSA_assert(OSA_SOK == status);
-    }
-
-    mutex_unlock(&tskmgr->m_mutex);
-
-    return status;
-}
-
-static status_t
-__task_mgr_free_msg(task_mgr_t *tskmgr, msg_t *msg)
-{
-    status_t status = OSA_SOK;
-
-    mutex_lock(&tskmgr->m_mutex);
-
-    status |= dlist_put_tail(&tskmgr->m_free_list, (dlist_element_t *)msg);
-
-    OSA_assert(OSA_SOK == status);
-
-    mutex_unlock(&tskmgr->m_mutex);
-
-    return status;
-}
-
-static status_t
-__task_mgr_deinitialize(task_mgr_t *tskmgr)
-{
-    status_t status = OSA_SOK;
+    status_t        status       = OSA_SOK;
     task_object_t * cur_tsk_node = NULL;
     task_object_t * nex_tsk_node = NULL;
 
@@ -637,62 +574,56 @@ __task_mgr_deinitialize(task_mgr_t *tskmgr)
      */
 
     /* Delete the tasks from the tasklists */
-    status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
+    status = dlist_first(&ptskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
 
     while (!OSA_ISERROR(status) && (cur_tsk_node != NULL)) {
 
-        status = dlist_next(&tskmgr->m_tsklists,
+        status = dlist_next(&ptskmgr->m_tsklists,
                             (dlist_element_t *) cur_tsk_node,
                             (dlist_element_t **)&nex_tsk_node
                             );
 
-        if (!OSA_ISERROR(status) && (nex_tsk_node != NULL)) {
-            /* Send DELETE_TASK cmd to delete task from tasklists */
-            __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-                    tskmgr->m_mgr_tsk.m_task, TASK_MGR_CMD_DELETE_TASK,
-                    (void *)nex_tsk_node, sizeof(*nex_tsk_node), MSG_FLAGS_WAIT_ACK);
+        if (OSA_ISERROR(status) || nex_tsk_node == NULL) {
+            break;
         }
+
+        /* Send UNREGISTER_TASK cmd to delete task from tasklists */
+         __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                ptskmgr->m_tsk_obj.m_task, TASK_MGR_CMD_UNREGISTER_TASK,
+                                (void *)nex_tsk_node, sizeof(*nex_tsk_node), MSG_FLAGS_WAIT_ACK);
         
-        cur_tsk_node = nex_tsk_node;
+        status = dlist_first(&ptskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
     }
 
     /* Send EXIT cmd to task manager itself */
-    status |= __task_mgr_synchronize(tskmgr->m_mgr_tsk.m_task,
-            tskmgr->m_mgr_tsk.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    status |= __task_mgr_synchronize(ptskmgr->m_tsk_obj.m_task,
+                                     ptskmgr->m_tsk_obj.m_task, TASK_CMD_EXIT,
+                                     NULL, 0, MSG_FLAGS_WAIT_ACK);
 
     /* Delete task manager itself from tasklists */
-    status |= __task_mgr_unregister_tsk(tskmgr, &tskmgr->m_mgr_tsk);
-#if 0
-    status |= task_delete(&tskmgr->m_mgr_tsk.m_task);
+    status |= __task_mgr_unregister_task(ptskmgr, &ptskmgr->m_tsk_obj);
 
-    status |= dlist_remove_element(&tskmgr->m_tsklists, (dlist_element_t *)&tskmgr->m_mgr_tsk);
-#endif
-
-    status |= OSA_memFree(sizeof(msg_t) * tskmgr->m_msg_cnt, (msg_t *)tskmgr->m_msgs);
-
-    tskmgr->m_msgs = NULL;
-
-    status |= mutex_delete(&tskmgr->m_mutex);
+    status |= osa_mutex_delete(&ptskmgr->m_mutex);
 
     /*
      *  Deinitialize task mansger env.
      */
     status |= __task_mgr_env_deinitialize();
 
-    tskmgr->m_initialized = FALSE;
+    ptskmgr->m_initialized = FALSE;
 
 	return status;
 }
 
 static status_t
-__task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
+__task_mgr_broadcast(task_mgr_t *ptskmgr, unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    int i;
-    int msg_cnt = 0;
+    int             i;
+    int             msg_cnt = 0;
 
-    msg_t *msg = NULL;
-    status_t status = OSA_SOK;
-    task_t tsklists[TASK_MGR_TSK_MAX];
+    msg_t         * msg = NULL;
+    status_t        status = OSA_SOK;
+    task_t          tsklists[TASK_MGR_TASK_MAX];
     task_state_t    tsk_state;
     task_object_t * cur_tsk_node = NULL;
     task_object_t * nex_tsk_node = NULL;
@@ -701,13 +632,13 @@ __task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned
         tsklists[i] = TASK_INVALID_TSK;
     }
 
-    mutex_lock(&tskmgr->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_first(&tskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
+    status = dlist_first(&ptskmgr->m_tsklists, (dlist_element_t **)&cur_tsk_node);
     OSA_assert(OSA_SOK == status);
 
     do {
-        status = dlist_next(&tskmgr->m_tsklists,
+        status = dlist_next(&ptskmgr->m_tsklists,
                             (dlist_element_t *) cur_tsk_node,
                             (dlist_element_t **)&nex_tsk_node
                            );
@@ -721,14 +652,14 @@ __task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned
         }
     } while (!OSA_ISERROR(status) && (nex_tsk_node != NULL));
 
-    mutex_unlock(&tskmgr->m_mutex);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
     if (msg_cnt == 0) {
         return OSA_SOK;
     }
 
     for (i = 0; i < msg_cnt; i++) {
-        status |= __task_mgr_synchronize(tsklists[i], tskmgr->m_mgr_tsk.m_task, cmd, prm, size, flags);
+        status |= __task_mgr_synchronize(tsklists[i], ptskmgr->m_tsk_obj.m_task, cmd, prm, size, flags);
     }
 
     return status;
@@ -737,34 +668,29 @@ __task_mgr_broadcast(task_mgr_t *tskmgr, unsigned short cmd, void *prm, unsigned
 static status_t
 __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
-    msg_t *msg = NULL;
-    msg_t *rcv_msg = NULL;
-    status_t status = OSA_SOK;
+    msg_t      * msg = NULL;
+    msg_t      * rcv_msg = NULL;
+    status_t     status = OSA_SOK;
     unsigned int id;
 	
     /* Synchronize task */
-    if (flags & MSG_FLAGS_WAIT_ACK) {
-        status = __task_mgr_alloc_msg(&glb_tsk_mgr_obj, &msg);
-    } else {
-        status = task_alloc_msg(sizeof(*msg), &msg);
-    }
+    status = task_alloc_msg(sizeof(*msg), &msg);
 
     if (OSA_ISERROR(status)) {
         return status;
     }
 
-    id = __task_mgr_get_msg_id(&glb_tsk_mgr_obj);
+    id = msg_get_msg_id(msg);
 
-    msg_init(msg);
     msg_set_cmd(msg, cmd);
     msg_set_payload_ptr(msg, prm);
     msg_set_payload_size(msg, size);
     msg_set_flags(msg, flags);
     msg_set_msg_size(msg, sizeof(*msg));
-    msg_set_msg_id(msg, id);
 
     status = task_send_msg(to, frm, msg, MSG_TYPE_CMD);
     if (OSA_ISERROR(status)) {
+        task_free_msg(sizeof(*msg), msg);
         return status;
     }
 
@@ -778,42 +704,38 @@ __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, uns
 
         status = msg_get_status(rcv_msg);
 
-        __task_mgr_free_msg(&glb_tsk_mgr_obj, msg);
+        task_free_msg(sizeof(*msg), msg);
     }
 
 	return status;
 }
 
 static status_t
-__task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk)
+__task_mgr_register_task(task_mgr_t *ptskmgr, task_object_t *ptsk)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
     task_mgr_find_prm_t prm;
-
-    if (tsk == NULL) {
-        return OSA_EINVAL;
-    }
 
     /*
      *  Check the task wheter it is already registered.
      */
-    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_name = (unsigned char *)ptsk->m_name;
     prm.m_task = NULL;
-    status = __task_mgr_find(hdl, &prm);
+    status = __task_mgr_find_task(ptskmgr, &prm);
 
     if (!OSA_ISERROR(status)) {
-        OSA_assert(prm.m_task == tsk);
+        OSA_assert(prm.m_task == ptsk);
         return status;
     }
 
     /* Create task */
-    status = task_create(tsk->m_name,
-                         tsk->m_main,
-                         tsk->m_pri,
-                         tsk->m_stack_size,
-                         tsk->m_init_state,
-                         tsk->m_userdata,
-                         &tsk->m_task
+    status = task_create(ptsk->m_name,
+                         ptsk->m_main,
+                         ptsk->m_pri,
+                         ptsk->m_stack_size,
+                         ptsk->m_init_state,
+                         ptsk->m_userdata,
+                         &ptsk->m_task
                         );
 
     if (OSA_ISERROR(status)) {
@@ -821,103 +743,89 @@ __task_mgr_register_tsk(task_mgr_handle hdl, task_object_t *tsk)
     }
 
     /* Register task object */
-    mutex_lock(&hdl->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_initialize_element((dlist_element_t *)tsk);
-    status = dlist_put_tail(&hdl->m_tsklists, (dlist_element_t *)tsk);
+    status = dlist_initialize_element((dlist_element_t *)ptsk);
+    status = dlist_put_tail(&ptskmgr->m_tsklists, (dlist_element_t *)ptsk);
 
-    hdl->m_tsk_cnt += 1;
+    ptskmgr->m_tsk_cnt += 1;
 
-    mutex_unlock(&hdl->m_mutex);
-
-    return status;
-}
-
-static status_t
-__task_mgr_start_tsk(task_mgr_handle hdl, task_object_t *tsk)
-{
-    status_t status = OSA_SOK;
-    task_mgr_find_prm_t prm;
-
-    if (tsk == NULL) {
-        return OSA_EINVAL;
-    }
-
-    /*
-     *  Check the task wheter it is already registered.
-     */
-    prm.m_name = (unsigned char *)tsk->m_name;
-    prm.m_task = NULL;
-    status = __task_mgr_find(hdl, &prm);
-
-    if (OSA_ISERROR(status)) {
-        return status;
-    }
-
-    status = __task_mgr_synchronize(tsk->m_task, hdl->m_mgr_tsk.m_task, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
-    if (OSA_ISERROR(status)) {
-        return status;
-    }
-
-    status = __task_mgr_synchronize(tsk->m_task, hdl->m_mgr_tsk.m_task, TASK_CMD_PROC, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
     return status;
 }
 
 static status_t
-__task_mgr_stop_tsk(task_mgr_handle hdl, task_object_t *tsk)
+__task_mgr_start_task(task_mgr_t *ptskmgr, task_object_t *ptsk)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
     task_mgr_find_prm_t prm;
-
-    if (tsk == NULL) {
-        return OSA_EINVAL;
-    }
 
     /*
      *  Check the task wheter it is already registered.
      */
-    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_name = (unsigned char *)ptsk->m_name;
     prm.m_task = NULL;
-    status = __task_mgr_find(hdl, &prm);
+    status = __task_mgr_find_task(ptskmgr, &prm);
 
     if (OSA_ISERROR(status)) {
         return status;
     }
 
-    return __task_mgr_synchronize(tsk->m_task, hdl->m_mgr_tsk.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    status = __task_mgr_synchronize(ptsk->m_task, ptskmgr->m_tsk_obj.m_task, TASK_CMD_INIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
+
+    return __task_mgr_synchronize(ptsk->m_task, ptskmgr->m_tsk_obj.m_task, TASK_CMD_PROC, NULL, 0, MSG_FLAGS_WAIT_ACK);
 }
 
 static status_t
-__task_mgr_unregister_tsk(task_mgr_handle hdl, task_object_t *tsk)
+__task_mgr_stop_task(task_mgr_t *ptskmgr, task_object_t *ptsk)
 {
-    status_t status = OSA_SOK;
+    status_t            status = OSA_SOK;
     task_mgr_find_prm_t prm;
-
-    if (tsk == NULL) {
-        return OSA_EINVAL;
-    }
 
     /*
      *  Check the task wheter it is already registered.
      */
-    prm.m_name = (unsigned char *)tsk->m_name;
+    prm.m_name = (unsigned char *)ptsk->m_name;
     prm.m_task = NULL;
-    status = __task_mgr_find(hdl, &prm);
+    status = __task_mgr_find_task(ptskmgr, &prm);
+
+    if (OSA_ISERROR(status)) {
+        return status;
+    }
+
+    return __task_mgr_synchronize(ptsk->m_task, ptskmgr->m_tsk_obj.m_task, TASK_CMD_EXIT, NULL, 0, MSG_FLAGS_WAIT_ACK);
+}
+
+static status_t
+__task_mgr_unregister_task(task_mgr_t *ptskmgr, task_object_t *ptsk)
+{
+    status_t            status = OSA_SOK;
+    task_mgr_find_prm_t prm;
+
+    /*
+     *  Check the task wheter it is already registered.
+     */
+    prm.m_name = (unsigned char *)ptsk->m_name;
+    prm.m_task = NULL;
+    status = __task_mgr_find_task(ptskmgr, &prm);
 
     if (OSA_ISERROR(status)) {
         return status;
     }
 
     /* Delete task */
-    status = task_delete(&tsk->m_task);
+    status = task_delete(&ptsk->m_task);
 
     /* Unregister task object */
-    mutex_lock(&hdl->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_remove_element(&hdl->m_tsklists, (dlist_element_t *)tsk);
+    status = dlist_remove_element(&ptskmgr->m_tsklists, (dlist_element_t *)ptsk);
 
-    mutex_unlock(&hdl->m_mutex);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
     return status;
 }
@@ -928,19 +836,19 @@ __task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
     static int      cnt      = 0;
     status_t        status   = OSA_SOK;
     task_state_t    state;
-    task_mgr_t    * tskmgr   = NULL;
+    task_mgr_t    * ptskmgr  = NULL;
     task_object_t * tsk_node = NULL;
 
     tsk_node = (task_object_t *)elem;
-    tskmgr   = (task_mgr_t *   )data;
+    ptskmgr  = (task_mgr_t    *)data;
 
     status = task_get_state(tsk_node->m_task, &state);
     OSA_assert(OSA_SOK == status);
 
-    fprintf(stdout, "    [%02d]    | [0x%08x] |     [%02d]     | [%-22s]\n",
-            cnt++, tsk_node->m_task, state, tsk_node->m_name);
+    fprintf(stdout, "    [%02d]    | [0x%08x] |    [%s]    | [%-22s]\n",
+            cnt++, tsk_node->m_task, STATE_STR[state], tsk_node->m_name);
 
-    if (cnt >= tskmgr->m_tsk_cnt) {
+    if (cnt >= ptskmgr->m_tsk_cnt) {
         cnt = 0;
     }
 
@@ -948,26 +856,26 @@ __task_mgr_instruments_apply_fxn(dlist_element_t *elem, void *data)
 }
 
 static status_t
-__task_mgr_task_instruments(task_mgr_t *tskmgr)
+__task_mgr_task_instruments(task_mgr_t *ptskmgr)
 {
     status_t status = OSA_SOK;
 
     fprintf(stdout, "\nTASK_MGR: Satatistics.\n"
-                    "\n     ID     |     TASK     |     STATE    |     NAME"
+                    "\n   INDEX    |     TASK     |     STATE    |     NAME"
                     "\n--------------------------------------------------------------------\n"
                     );
 
-    mutex_lock(&tskmgr->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_map(&tskmgr->m_tsklists, __task_mgr_instruments_apply_fxn, (void *)tskmgr);
+    status = dlist_map(&ptskmgr->m_tsklists, __task_mgr_instruments_apply_fxn, (void *)ptskmgr);
 
-    mutex_unlock(&tskmgr->m_mutex);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
     return status;
 }
 
 static status_t
-__task_mgr_thdpool_instruments(task_mgr_t *tskmgr)
+__task_mgr_thdpool_instruments(task_mgr_t *ptskmgr)
 {
     return tasklist_instruments();
 }
@@ -980,16 +888,16 @@ __task_mgr_find_match_fxn(dlist_element_t *elem, void *data)
 }
 
 static status_t
-__task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm)
+__task_mgr_find_task(task_mgr_t *ptskmgr, task_mgr_find_prm_t *prm)
 {
     status_t        status   = OSA_SOK;
     task_object_t * tsk_node = NULL;
 
     prm->m_task = NULL;
 
-    mutex_lock(&tskmgr->m_mutex);
+    osa_mutex_lock(ptskmgr->m_mutex);
 
-    status = dlist_search_element(&tskmgr->m_tsklists, (void *)prm,
+    status = dlist_search_element(&ptskmgr->m_tsklists, (void *)prm,
                                  (dlist_element_t **)&tsk_node, __task_mgr_find_match_fxn);
     if (!OSA_ISERROR(status)) {
         prm->m_task = tsk_node;
@@ -998,21 +906,36 @@ __task_mgr_find(task_mgr_t *tskmgr, task_mgr_find_prm_t *prm)
         status = OSA_ENOENT;
     }
 
-    mutex_unlock(&tskmgr->m_mutex);
+    osa_mutex_unlock(ptskmgr->m_mutex);
 
     return status;
 }
 
-static status_t
-__task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg)
+static bool
+__task_mgr_find_match_fxn2(dlist_element_t *elem, void *data)
 {
-	status_t	   status = OSA_SOK;
-    task_state_t   state;
-    task_mgr_handle hdl = NULL;
-	
-    hdl = (task_mgr_handle)userdata;
+    bool            is_found = false;
+    status_t        status   = OSA_ENOENT;
+    task_object_t * ptsk     = (task_object_t *)elem;
 
-    OSA_assert(hdl != NULL);
+    if (ptsk->m_find != NULL) {
+        status = (*ptsk->m_find)(ptsk->m_userdata, *(unsigned short *)data, NULL);
+    }
+
+    if (!OSA_ISERROR(status)) {
+        is_found = true;
+    }
+
+    return is_found;
+}
+
+static status_t
+__task_mgr_internal_main(task_t tsk, msg_t **msg, void *userdata)
+{
+	status_t	  status  = OSA_SOK;
+    task_mgr_t  * ptskmgr = (task_mgr_t *)userdata;
+	
+    OSA_assert(ptskmgr != NULL);
 
     switch(msg_get_cmd((*msg)))
     {
@@ -1029,32 +952,32 @@ __task_mgr_internal_main(void *userdata, task_t tsk, msg_t **msg)
             break;
 
         /* Cmds for task manager */
-        case TASK_MGR_CMD_CREATE_TASK:
-            status = __task_mgr_register_tsk(hdl, (task_object_t *)msg_get_payload_ptr((*msg)));
+        case TASK_MGR_CMD_REGISTER_TASK:
+            status = __task_mgr_register_task(ptskmgr, (task_object_t *)msg_get_payload_ptr((*msg)));
             break;
 
         case TASK_MGR_CMD_START_TASK:
-            status = __task_mgr_start_tsk(hdl, (task_object_t *)msg_get_payload_ptr((*msg)));
+            status = __task_mgr_start_task(ptskmgr, (task_object_t *)msg_get_payload_ptr((*msg)));
             break;
 
         case TASK_MGR_CMD_STOP_TASK:
-            status = __task_mgr_stop_tsk(hdl, (task_object_t *)msg_get_payload_ptr((*msg)));
+            status = __task_mgr_stop_task(ptskmgr, (task_object_t *)msg_get_payload_ptr((*msg)));
             break;
 
-        case TASK_MGR_CMD_DELETE_TASK:
-            status = __task_mgr_unregister_tsk(hdl, (task_object_t *)msg_get_payload_ptr((*msg)));
+        case TASK_MGR_CMD_UNREGISTER_TASK:
+            status = __task_mgr_unregister_task(ptskmgr, (task_object_t *)msg_get_payload_ptr((*msg)));
             break;
 
         case TASK_MGR_CMD_TASK_INSTRUMENTS:
-            status = __task_mgr_task_instruments(hdl);
+            status = __task_mgr_task_instruments(ptskmgr);
             break;
 
         case TASK_MGR_CMD_THDPOOL_INSTRUMENTS:
-            status = __task_mgr_thdpool_instruments(hdl);
+            status = __task_mgr_thdpool_instruments(ptskmgr);
             break;
 
         case TASK_MGR_CMD_FIND_TASK:
-            status = __task_mgr_find(hdl, (task_mgr_find_prm_t *)msg_get_payload_ptr((*msg)));
+            status = __task_mgr_find_task(ptskmgr, (task_mgr_find_prm_t *)msg_get_payload_ptr((*msg)));
             break;
 
         default:
