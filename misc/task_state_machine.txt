@@ -1,0 +1,207 @@
+
+1. Task state machine
+
+                         +---------------------+                         
+                         |     TASK CREATE     |                         
+                         +----------+----------+                         
+                                    |                                    
++-----------------------------------------------------------------------+
+|                                   |                                   |
+|                        +----------v----------+        +--------+      |
+|                        | TASK STAGE REGISTER +--------+        |      |
+|                        +----------+----------+        |        |      |
+|   +-----------------+             |                   |        |      |
+|   |  TASK CMD INIT  +-----------> |                   |        |      |
+|   +-----------------+             |                   |        |      |
+|                        +----------v----------+        |        |      |
+|                        |   TASK STAGE INIT   +--------+        |      |
+|                        +----------+----------+        |        |      |
+|   +-----------------+             |                   |        |      |
+|   |  TASK CMD PROC  +-----------> |                   | Thread |      |
+|   +-----------------+             |                   |        |      |
+|                        +----------v----------+        |        |      |
+|                        |   TASK STAGE PROC   +--------+        |      |
+|                        +----------+----------+        |        |      |
+|   +-----------------+             |                   |        |      |
+|   | TASK CMD DEINIT +-----------> |                   |Attached|      |
+|   +-----------------+             |                   |        |      |
+|                        +----------v----------+        |        |      |
+|                        |  TASK STAGE DEINIT  +--------+        |      |
+|                        +----------+----------+        |        |      |
+|   +-----------------+             |                   |        |      |
+|   |  TASK CMD EXIT  +-----------> |                   |        |      |
+|   +-----------------+             |                   |        |      |
+|                        +----------v----------+        |        |      |
+|                        |TASK STAGE UNREGISTER+--------+        |      |
+|                        +----------+----------+        +--------+      |
+|                                   |                                   |
++-----------------------------------------------------------------------+
+                                    |                                    
+                         +----------v----------+                         
+                         |     TASK DELETE     |                         
+                         +---------------------+                         
+
+2. Introduction
+
+    The state machine of task transaction is described as above. From the picture
+    above we know, the task transaction has five states during the life time of a
+    task: TASK_STAGE_REGISGER, TASK_STAGE_INIT, TASK_STAGE_PROC, TASK_STAGE_DEINIT
+    and TASK_STAGE_UNREGISTER. The rest of this passage we will describe the typical
+    flow of task state transaction and detail how task will be transacted when it
+    receive a specific command.
+
+3. Typical transaction flow
+
+3.1 Registration
+    
+    When we want to run a task, we first call task_mgr_register() or
+    task_create()  with parameters needed to register/create a task, this
+    routine will register the task and add the task to the threadpool's task
+    lists where the thread gets the task from. After successful registered,
+    the task's state is at TASK_STAGE_REGISTER.
+
+    If the threadpool has idle thread available, the task will be attached with
+    a thread, and from now on, we can send command to task to control task's
+    behavior.
+
+    If not(the threadpool's thread numbers is limited), the task will be left
+    on the threadpool's task lists and wait for idle thread available. If this
+    happen, we cann't send command to this task, otherwise we be blocked,
+    because there is no thread reponses to the command. The question is:
+
+    How can we know whether the task is attached with a thread or not???
+
+    See also: task_create()
+              task_mgr_register()
+
+3.2 Initialize
+
+    With a thread attached, the task can receive commands sent by other task.
+    The first command the task received is TASK_CMD_INIT, this command tell
+    the task to perform some initialized operations, such as open file,
+    establish network connection, etc. After the task initialized
+    successfully, the task is at TASK_STAGE_INIT. If the task's initialization
+    failed, the state is remain TASK_STAGE_INIT and error code will be returned.
+
+    See also: TASK_CMD_INIT
+              TASK_STAGE_INIT
+              task_mgr_synchronize()
+
+3.3 Process
+
+    After the task initialized successfully, we then send the command
+    TASK_CMD_PROC to tell the task to do the core work. This is the most
+    important port of a task. If it does that successfully, the task state
+    will be TASK_STAGE_PROC. For the type of the most tasks, there are two
+    kinds of process modles:
+
+    a. Message driving modle.
+
+           +-----------+       
+           |           |       
+           |           |       
+           |   +-------v------+
+           |   | Wait for Msg |
+           |   +-------+------+
+           |           |       
+           |   +-------v------+
+           |   |  Check  Cmd  |
+           |   +-------+------+
+           |           |       
+           |   +-------v------+
+           |   | Process  Cmd |
+           |   +-------+------+
+           |           |       
+           +<----------+       
+                    
+
+    b. Task driving modle.
+
+           +-----------+       
+           |           |       
+           |           |       
+           |   +-------v------+
+           |   | Do the Task  |
+           |   +-------+------+
+           |           |       
+           |   +-------v------+
+           |   |  Check  Msg  |
+           |   +-------+------+
+           |           |       
+           |   +-------v------+
+           |   | Process  Msg |
+           |   +-------+------+
+           |           |       
+           +<----------+       
+
+
+    See also: TASK_CMD_PROC
+              TASK_STAGE_PROC
+              task_mgr_synchronize()
+
+3.4 De-initialize
+
+    Drived by the cmd TASK_CMD_DEINIT, the task do the operation contrary to
+    the Initialize stage, such as shutdown network connection, close file,
+    etc. When finished, the state comes to TASK_STAGE_DEINIT.
+
+    See also: TASK_CMD_DEINIT
+              TASK_STAGE_DEINIT
+              task_mgr_synchronize()
+
+3.5 Exit
+
+    Drived by the cmd TASK_CMD_EXIT, the main purpose of this command is to
+    detach a thread from the task. When the task state in TASK_STAGE_EXIT,
+    there is no thread to run the task, and we cann't send command to the
+    task. If we do so, we will be blocked and cann't get reply forever.
+
+    See also: TASK_CMD_EXIT
+              TASK_STAGE_EXIT
+              task_mgr_synchronize()
+
+3.6 Unregistration
+
+    If the task finished its work, or we no longer need it, we should
+    unregister it: remove it from the threadpool's task lists.
+
+    See also: task_delete()
+              task_mgr_unregister()
+             
+4. Task stage transaction
+
+4.1 TASK_STAGE_REGISTER
+
+4.2 TASK_STAGE_INIT
+
+4.3 TASK_STAGE_PROC
+
+4.4 TASK_STAGE_DEINIT
+
+4.5 TASK_STAGE_EXIT
+
+4.6 TASK_STAGE_UNREGISTER
+
+5. Others
+
+    Some issues need to be considered:
+
+    a. If there is no dile thread to run the task and we must wait until
+    some thread finished its task and be idle. If someone send a synchronized
+    command to the task and wait for reply, the command sender will be
+    blocked. How can we handle in such case so as the sended not to be blocked.
+
+    b. If the task is detached from the thread, how can we handle it properly so
+    as the command sender not to be blocked.
+
+    c. If the task receive a command twice or more, how can we handle it
+    correctly.
+
+6. Features need to be added
+
+
+
+7. Others
+
+   TASK_STATE_PENDING, TASK_STATE_PROCSSING, TASK_STATE_CANCELED,
+   TASK_STATE_FINISHED.
