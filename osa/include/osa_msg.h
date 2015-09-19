@@ -6,24 +6,29 @@
  *
  *  @Author: xiong-kaifang   Version: v1.0   Date: 2013-04-05
  *
- *  @Description:   //	用于详细说明此程序文件完成的主要功能，与其它模块
- *		            //	或函数的接口，输出值，取值范围、含义及参数间的控
- *		            //	制、顺序、独立或依赖等关系
- *		            //
+ *  @Description:   // 用于详细说明此程序文件完成的主要功能，与其它模块
+ *                  // 或函数的接口，输出值，取值范围、含义及参数间的控
+ *                  // 制、顺序、独立或依赖等关系
+ *                  //
  *
- *	                The header file osa message.
+ *                  The header file osa message.
  *
- *  @Others:	    //	其它内容说明
+ *  @Others:        // 其它内容说明
  *
- *  @Function List: //	主要函数列表，每条记录就包括函数名及功能简要说明
- *	    1.  ...
- *	    2.  ...
+ *  @Function List: // 主要函数列表，每条记录就包括函数名及功能简要说明
+ *      1.  ...
+ *      2.  ...
  *
- *  @History:	    //	修改历史记录列表，每条修改记录就包括修改日期、修改
- *	        	    //	时间及修改内容简述
+ *  @History:       // 修改历史记录列表，每条修改记录就包括修改日期、修改
+ *                  // 时间及修改内容简述
  *
- *	<author>	    <time>	     <version>	    <desc>
+ *  <author>        <time>       <version>      <description>
+ *
  *  xiong-kaifang   2013-04-05     v1.0	        Write this module.
+ *
+ *  xiong-kaifang   2015-09-19     v1.1         Using 'unsigned long' datatype
+ *                                              to be compatible with 64bits
+ *                                              system.
  *
  *  ============================================================================
  */
@@ -88,15 +93,16 @@ extern "C" {
  *  ----------------------------------------------------------------------------
  */
 struct __std_msg_t; typedef struct __std_msg_t std_msg_t;
-struct __std_msg_t {
+struct __std_msg_t
+{
     DLIST_ELEMENT_RESERVED;
-    unsigned int	    m_reserved1;
-    unsigned int	    m_reserved2;
+    unsigned long       m_reserved1;
+    unsigned long       m_reserved2;
     void              * m_prm;
-    unsigned int	    m_size;
-    unsigned short	    m_cmd;
-    unsigned short	    m_flags;
-    unsigned   int	    m_status;
+    unsigned int        m_size;
+    unsigned short      m_cmd;
+    unsigned short      m_flags;
+    unsigned int        m_status;
     unsigned int        m_msg_size;
     unsigned int        m_msg_id;
 
@@ -113,16 +119,16 @@ struct __mbx_msg_t; typedef struct __mbx_msg_t mbx_msg_t;
 struct __mbx_msg_t
 {
     struct __msgq_msg_t m_header;
-    unsigned int        m_to;
-    unsigned int        m_frm;
+    unsigned long       m_to;
+    unsigned long       m_frm;
 };
 
 struct __tsk_msg_t; typedef struct __tsk_msg_t tsk_msg_t;
 struct __tsk_msg_t
 {
     struct __mbx_msg_t  m_header;
-    unsigned int        m_to;
-    unsigned int        m_frm;
+    unsigned long       m_to;
+    unsigned long       m_frm;
 };
 
 struct __msg_t; typedef struct __msg_t msg_t;
@@ -155,29 +161,29 @@ enum __msg_flags_t
 
 /** =============================================================================
  *
- *  @Function:	    //	函数名称
+ *  @Function:      // 函数名称
  *
- *  @Description:   //	函数功能、性能等的描述
+ *  @Description:   // 函数功能、性能等的描述
  *
- *  @Calls:	        //	被本函数调用的函数清单
+ *  @Calls:	        // 被本函数调用的函数清单
  *
- *  @Called By:	    //	调用本函数的函数清单
+ *  @Called By:	    // 调用本函数的函数清单
  *
- *  @Table Accessed://	被访问的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Accessed:// 被访问的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Table Updated: //	被修改的表（此项仅对于牵扯到数据库操作的程序）
+ *  @Table Updated: // 被修改的表（此项仅对于牵扯到数据库操作的程序）
  *
- *  @Input:	        //	对输入参数的说明
+ *  @Input:	        // 对输入参数的说明
  *
- *  @Output:	    //	对输出参数的说明
+ *  @Output:        // 对输出参数的说明
  *
- *  @Return:	    //	函数返回值的说明
+ *  @Return:        // 函数返回值的说明
  *
- *  @Enter          //  Precondition
+ *  @Enter          // Precondition
  *
- *  @Leave          //  Postcondition
+ *  @Leave          // Postcondition
  *
- *  @Others:	    //	其它说明
+ *  @Others:        // 其它说明
  *
  *  ============================================================================
  */
