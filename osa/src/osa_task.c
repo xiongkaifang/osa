@@ -34,6 +34,9 @@
  *                                                 check the arguments.
  *                                              5. Add task_check_state routine.
  *
+ *  xiong-kaifang   2016-09-07     v1.3         Set task state before sending
+ *                                              ack message.
+ *
  *  ============================================================================
  */
 
@@ -427,7 +430,6 @@ status_t task_synchronize(task_t tsk, TASK_SYNC fxn, unsigned int nums, void *us
     int        retval = 0;
     status_t   status = OSA_SOK;
     msg_t    * msg    = NULL;
-    bool_t     bexit  = FALSE;
 
     task_check_arguments2(HANDLE_TO_POINTER(tsk), fxn);
 
@@ -446,7 +448,7 @@ status_t task_synchronize(task_t tsk, TASK_SYNC fxn, unsigned int nums, void *us
         }
 
         if (TASK_CMD_EXIT == (msg_get_cmd(msg))) {
-            bexit = TRUE;
+            task_set_state(tsk, TASK_STATE_EXIT);
         }
 
         retval = (*fxn)(tsk, msg, userdata);
@@ -455,10 +457,6 @@ status_t task_synchronize(task_t tsk, TASK_SYNC fxn, unsigned int nums, void *us
 
         status = task_ack_free_msg(tsk, msg);
 
-    }
-
-    if (bexit) {
-        ((struct __task_t *)tsk)->m_tsk_state = TASK_STATE_EXIT;
     }
 
     return status;
