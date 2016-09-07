@@ -301,6 +301,11 @@ status_t task_mgr_start(task_object_t *ptsk)
      *      because task manager will be blocked if we do that recursion.
      *
      */
+
+    if (!task_check_state(ptsk->m_task)) {
+        return OSA_SOK;
+    }
+
     return __task_mgr_start_task(ptskmgr, ptsk);
 #endif
 }
@@ -327,6 +332,11 @@ status_t task_mgr_stop(task_object_t *ptsk)
      *      because task manager will be blocked if we do that recursion.
      *
      */
+
+    if (!task_check_state(ptsk->m_task)) {
+        return OSA_SOK;
+    }
+
     return __task_mgr_stop_task(ptskmgr, ptsk);
 #endif
 }
