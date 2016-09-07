@@ -31,6 +31,8 @@
  *                                              2. Tweak TASK_SYNC and TASK_MAIN
  *                                                 prototype.
  *
+ *  xiong-kaifang   2016-09-07     v1.3         Add macro 'TASK_MSG_ACK()'.
+ *
  *  ============================================================================
  */
 
@@ -58,6 +60,13 @@ extern "C" {
  *  ============================================================================
  */
 #define TASK_INVALID_TSK    (~(0u))
+
+#define TASK_MSG_ACK(tsk, pmsg, status) \
+    do {                                \
+        msg_set_status(*pmsg, status);  \
+        task_ack_free_msg(tsk, *pmsg);  \
+        (*pmsg) = NULL;                 \
+    } while (0)
 
 /*
  *  --------------------- Data type definition ---------------------------------

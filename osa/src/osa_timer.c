@@ -31,6 +31,9 @@
  *                                                 'osa_event_object'
  *                                                 dynamically.
  *
+ *  xiong-kaifang   2016-09-07     v1.3         Use routine 'task_check_state()'
+ *                                              to check the state of the task.
+ *
  *  ============================================================================
  */
 
@@ -412,19 +415,16 @@ __osa_timer_task_external_main(task_t tsk, msg_t **msg, void *userdata)
     switch (msg_get_cmd((*msg)))
     {
         case TASK_CMD_INIT:
-            status |= task_set_state(tsk, TASK_STATE_INIT);
             status |= __osa_timer_do_initialize(ptimer);
 
             break;
 
         case TASK_CMD_EXIT:
-            status |= task_set_state(tsk, TASK_STATE_EXIT);
             status |= __osa_timer_do_deinitialize(ptimer);
 
             break;
 
         case TASK_CMD_PROC:
-            status |= task_set_state(tsk, TASK_STATE_PROC);
             status |= __osa_timer_do_process(ptimer, tsk, msg);
 
             break;
@@ -592,7 +592,6 @@ __osa_timer_synchronize(task_t tsk, msg_t *msg, void *userdata)
     {
         case TASK_CMD_EXIT:
             status |= __osa_timer_do_deinitialize(ptimer);
-            status |= task_set_state(tsk, TASK_STATE_EXIT);
             break;
 
         default:
@@ -610,18 +609,13 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
     osa_event_object_t *pevent = NULL;
     osa_event_object_t *pnext_node = NULL;
     status_t status = OSA_SOK;
-    task_state_t tsk_state = TASK_STATE_PROC;
 
     /*
      *  Note: if we do not return from this routine right now, ack the msg first.
      */
-    msg_set_status(*msg, OSA_SOK);
-    status = task_ack_free_msg(tsk, *msg);
+    TASK_MSG_ACK(tsk, msg, OSA_SOK);
 
-    (*msg) = NULL;
-
-    while (!OSA_ISERROR(task_get_state(tsk, &tsk_state))
-            && tsk_state != TASK_STATE_EXIT) {
+    while (task_check_state(tsk)) {
 
         osa_mutex_lock(ptimer->m_mutex);
 
