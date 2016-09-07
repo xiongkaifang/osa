@@ -45,6 +45,10 @@ DEFINE=
 
 endif
 
+ifeq ($(shell getconf LONG_BIT), 64)
+CC_OPTS+=-Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -fpic
+endif
+
 AR_OPTS=-rc
 LD_OPTS=-lpthread -lm
 

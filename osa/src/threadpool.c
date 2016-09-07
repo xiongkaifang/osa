@@ -36,6 +36,9 @@
  *                                                 case of thread cancellation.
  *                                              5. Others misc tweak.
  *
+ *  xiong-kaifang   2015-10-04     v1.3         Using 'INVALID_HANDLE' to
+ *                                              initialize related variables.
+ *
  *  ============================================================================
  */
 
@@ -343,7 +346,7 @@ status_t threadpool_add_task(threadpool_t thdp,
     status_t                status;
     thread_t                thd;
     thread_attrs_t          thd_attrs;
-    task_token_t            tsk_token    = NULL;
+    task_token_t            tsk_token    = INVALID_HANDLE;
     thdpool_task_t        * ptsk         = NULL;
     struct __threadpool_t * pthdp = (struct __threadpool_t *)thdp;
 
@@ -664,8 +667,8 @@ exit_from_error:
 static int  __threadpool_exit(struct __threadpool_t *pthdp)
 {
     status_t         status  = OSA_SOK;
-    thread_t         thd_cur = NULL;
-    thread_t         thd_nex = NULL;
+    thread_t         thd_cur = INVALID_HANDLE;
+    thread_t         thd_nex = INVALID_HANDLE;
     thdpool_task_t * ptsk    = NULL;
 
     DBG(DBG_DETAILED, GT_NAME, "__threadpool_exit: Enter (pthdp=0x%x).\n", pthdp);
@@ -748,7 +751,7 @@ static status_t __threadpool_run_stub(void)
     int                     status;
     bool                    tsk_exit;
     bool_t                  timedout = FALSE;
-    thread_t                thd      = NULL;
+    thread_t                thd      = INVALID_HANDLE;
     thdpool_task_t        * ptsk     = NULL;
     struct __threadpool_t * pthdp    = NULL;;
 
@@ -970,7 +973,7 @@ static void __threadpool_notify_waiters(struct __threadpool_t *pthdp)
 static void __threadpool_cleanup_worker(struct __threadpool_t *pthdp)
 {
     int            status;
-    thread_t       thd  = NULL;
+    thread_t       thd  = INVALID_HANDLE;
     thread_attrs_t thd_attrs;
 
     CAN_DBG(DBG_DETAILED, GT_NAME, "__threadpool_cleanup_worker: Enter (pthdp=0x%x).\n", pthdp);
@@ -1090,7 +1093,7 @@ static status_t
 __threadpool_instruments_apply_fxn(dlist_element_t *elem, void *data)
 {
     status_t status = OSA_SOK;
-    thread_t thd    = NULL;
+    thread_t thd    = INVALID_HANDLE;
 
     thd = (thread_t)elem;
 
