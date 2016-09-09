@@ -35,6 +35,9 @@ osa_timer: osa
 osa_task: osa
 	$(MAKE) -fMAKEFILE.MK -C$(PROJECT_PATH)/demos/osa_task MODULE=osa_task
 
+osa_log: osa
+	$(MAKE) -fMAKEFILE.MK -C$(PROJECT_PATH)/demos/osa_log MODULE=osa_log
+
 osa_clean:
 	$(MAKE) -fMAKEFILE.MK -C$(PROJECT_PATH)/osa MODULE=osa clean
 
@@ -53,6 +56,10 @@ osa_timer_clean: osa_clean
 osa_task_clean: osa_clean
 	$(MAKE) -fMAKEFILE.MK -C$(PROJECT_PATH)/demos/osa_task MODULE=osa_task clean
 
-clean: osa_clean debug_test_clean osa_test_clean osa_console_clean osa_timer_clean osa_task_clean
+osa_log_clean: osa_clean
+	$(MAKE) -fMAKEFILE.MK -C$(PROJECT_PATH)/demos/osa_log MODULE=osa_log clean
 
-all: clean osa osa_test debug_test osa_console osa_timer osa_task
+clean: osa_clean debug_test_clean osa_test_clean osa_console_clean osa_timer_clean osa_task_clean \
+		osa_log_clean
+
+all: clean osa osa_test debug_test osa_console osa_timer osa_task osa_log

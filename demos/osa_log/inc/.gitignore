@@ -1,0 +1,11 @@
+tags
+cscope.out
+cscope.files
+.svn
+.metadata
+bin
+*~
+*.o
+.*
+!.gitignore
+!.gitkeep
