@@ -34,7 +34,13 @@
 
 /*  --------------------- Include system headers ---------------------------- */
 #include <stdarg.h>
+
+#if defined(_WIN32)
+#include <WINdows.h>
+#include <process.h>
+#else
 #include <pthread.h>
+#endif
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
@@ -100,8 +106,13 @@ struct __thread_t
 {
     DLIST_ELEMENT_RESERVED;
 
+#if defined(_WIN32)
+    HANDLE          hHdl;
+    unsigned int    thd_id;
+#else
     pthread_t       thd_id;
     pthread_attr_t  pattrs;
+#endif
 
     Fxn             fxn;
     Arg             args[THREAD_MAX_ARGS];
@@ -133,7 +144,11 @@ thread_attrs_t default_thd_attrs = {
 
 static int                glb_cur_init = 0;
 
+#if defined(_WIN32)
+static DWORD              glb_thd_tls;
+#else
 static pthread_key_t      glb_thd_key;
+#endif
 
 static const char * const GT_NAME = "thread";
 /*
@@ -170,7 +185,11 @@ static const char * const GT_NAME = "thread";
  */
 static void   __thread_cleanup(void *hdl);
 
+#if defined(_WIN32)
+static unsigned int __thread_run_stub(struct __thread_t *pthd);
+#else
 static void * __thread_run_stub(struct __thread_t *pthd);
+#endif
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -207,7 +226,14 @@ static void * __thread_run_stub(struct __thread_t *pthd);
 int          thread_init(void)
 {
     if (glb_cur_init++ == 0) {
+#if defined(_WIN32)
+        glb_thd_tls = TlsAlloc();
+        if (TLS_OUT_OF_INDEXES == glb_thd_tls) {
+            return OSA_EFAIL;
+        }
+#else
         pthread_key_create(&glb_thd_key, NULL);
+#endif
     }
 
     return 0;
@@ -216,7 +242,11 @@ int          thread_init(void)
 void         thread_exit(void)
 {
     if (--glb_cur_init == 0 ) {
+#if defined(_WIN32)
+        TlsFree(glb_thd_tls);
+#else
         pthread_key_delete(glb_thd_key);
+#endif
     }
 }
 
@@ -256,6 +286,17 @@ status_t     thread_create(thread_t *pthd, Fxn fxn, thread_attrs_t * attrs, ...)
     }
     va_end(va);
 
+#if defined(_WIN32)
+    thd->hHdl = (HANDLE)_beginthreadex(NULL, 0,
+            (PTHREAD_START)__thread_run_stub, (PVOID)thd, 0, &thd->thd_id);
+    if (!thd->hHdl) {
+        thd->exit_status = -1;
+        thread_delete((thread_t *)&thd);
+        status = OSA_EFAIL;
+    } else {
+        thd->thd_status  = 0;
+    }
+#else
     /* Create a realtime detached thread */
     pthread_attr_init(&thd->pattrs);
     pthread_attr_setdetachstate(&thd->pattrs, PTHREAD_CREATE_DETACHED);
@@ -264,7 +305,9 @@ status_t     thread_create(thread_t *pthd, Fxn fxn, thread_attrs_t * attrs, ...)
             (void * (*)(void *))__thread_run_stub, (void *)thd);
     if (thd->thd_status != 0) {
         thread_delete((thread_t *)&thd);
+        status = OSA_EFAIL;
     }
+#endif
 
     (*pthd) = (thread_t)thd;
 
@@ -284,13 +327,20 @@ status_t     thread_delete(thread_t *pthd)
 
     if (((thread_t)thd) != thread_self()) {
         if (cancel) {
-            int r;
 
+#if defined(_WIN32)
+            TerminateThread(thd->hHdl, thd->thd_status);
+#else
+            int r;
             r = pthread_cancel(thd->thd_id);
             r = pthread_join(thd->thd_id, NULL);
+#endif
         }
     }
 
+#if defined(_WIN32)
+    CloseHandle(thd->hHdl);
+#else
     /*
      *  Modified by: xiong-kaifang.
      *
@@ -302,6 +352,7 @@ status_t     thread_delete(thread_t *pthd)
      *
      */
     pthread_attr_destroy(&thd->pattrs);
+#endif
 
     status |= OSA_memFree(sizeof(struct __thread_t), thd);
 
@@ -351,7 +402,11 @@ thread_t     thread_self(void)
 
     DBG(DBG_DETAILED, GT_NAME, "thread_self: Enter.\n");
 
+#if defined(_WIN32)
+    pthd = (struct __thread_t *)TlsGetValue(glb_thd_tls);
+#else
     pthd = (struct __thread_t *)pthread_getspecific(glb_thd_key);
+#endif
 
     DBG(DBG_DETAILED, GT_NAME, "thread_self: Exit (pthd=0x%x).\n", pthd);
 
@@ -367,7 +422,11 @@ int          thread_cancel(thread_t thd)
 
     thread_check_arguments(pthd);
 
+#if defined(_WIN32)
+    TerminateThread(pthd->hHdl);
+#else
     status |= pthread_cancel(pthd->thd_id);
+#endif
 
     DBG(DBG_DETAILED, GT_NAME, "thread_cancel: Exit (status=0x%x).\n", status);
 
@@ -384,7 +443,11 @@ int          thread_join(thread_t thd)
 
     thread_check_arguments(pthd);
 
+#if defined(_WIN32)
+    GetExitCodeThread(pthd->hHdl, (PDWORD)&ret);
+#else
     status = pthread_join(pthd->thd_id, (void **)&ret);
+#endif
 
     DBG(DBG_DETAILED, GT_NAME, "thread_join: Exit (status=0x%x, ret=%d).\n", status, ret);
 
@@ -398,7 +461,10 @@ void         thread_yield(void)
 
     DBG(DBG_DETAILED, GT_NAME, "thread_yield: Enter.\n");
 
+#if defined(_WIN32)
+#else
     sched_yield();
+#endif
 
     DBG(DBG_DETAILED, GT_NAME, "thread_yield: Exit.\n");
 }
@@ -415,6 +481,25 @@ void         thread_yield(void)
  *
  *  ============================================================================
  */
+#if defined(_WIN32)
+static unsigned int __thread_run_stub(struct __thread_t *pthd)
+{
+    int status = 0;
+
+    TlsSetValue(glb_thd_tls, (PVOID)pthd);
+
+    status = (int)pthd->fxn(
+            pthd->args[0], pthd->args[1], pthd->args[2], pthd->args[3]
+            );
+
+    /* TODO: Exit this thread */
+    //ExitThread(status);
+
+    return (status);
+}
+
+#else
+
 static void * __thread_run_stub(struct __thread_t *pthd)
 {
     int status = 0;
@@ -434,11 +519,16 @@ static void * __thread_run_stub(struct __thread_t *pthd)
 
     return ((void *)status);
 }
+#endif
 
 static void __thread_cleanup(void *hdl)
 {
     if (--glb_cur_init == 0) {
+#if defined(_WIN32)
+        TlsFree(glb_thd_tls);
+#else
         pthread_key_delete(glb_thd_key);
+#endif
     }
 }
 

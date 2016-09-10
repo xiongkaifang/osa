@@ -33,9 +33,9 @@
 #define __OSA_SEM_H
 
 /*  --------------------- Include system headers ---------------------------- */
-#include <pthread.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
+#include "std_defs.h"
 #include "osa_status.h"
 
 #if defined(__cplusplus)
@@ -67,16 +67,7 @@ extern "C" {
  *  @Field:         Field2 member
  *  ----------------------------------------------------------------------------
  */
-struct __sem2_t; typedef struct __sem2_t sem2_t;
-struct __sem2_t
-{
-	unsigned int	m_count;
-	unsigned int	m_max_count;
-	pthread_mutex_t	m_mutex;
-	pthread_cond_t	m_cond;
-    volatile
-    unsigned int    m_state;
-};
+typedef HANDLE      osa_sem_t;
 
 /*
  *  --------------------- Public function declaration --------------------------
@@ -110,11 +101,11 @@ struct __sem2_t
  *
  *  ============================================================================
  */
-status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value);
-status_t sem2_wait  (sem2_t *sem, unsigned int timeout);
-status_t sem2_signal(sem2_t *sem);
-status_t sem2_exit  (sem2_t *sem);
-status_t sem2_delete(sem2_t *sem);
+status_t osa_sem_create(osa_sem_t *psem, unsigned int max_cnt, unsigned int init_value);
+status_t osa_sem_wait  (osa_sem_t  sem, unsigned int timeout);
+status_t osa_sem_signal(osa_sem_t  sem);
+status_t osa_sem_exit  (osa_sem_t  sem);
+status_t osa_sem_delete(osa_sem_t *psem);
 
 #if defined(__cplusplus)
 }

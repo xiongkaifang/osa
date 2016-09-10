@@ -29,7 +29,9 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
+#include "osa_mem.h"
 #include "osa_sem.h"
+#include "osa_mutex.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -45,7 +47,10 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define sem2_is_exit(sem)   ((sem)->m_state == OSA_SEM2_STATE_EXIT)
+#define osa_sem_is_exit(sem)    ((sem)->m_state == OSA_SEM_STATE_EXIT)
+
+#define osa_sem_check_arguments(arg)            osa_check_arguments(arg)
+#define osa_sem_check_arguments2(arg1, arg2)    osa_check_arguments2(arg1, arg2)
 
 /*
  *  --------------------- Structure definition ---------------------------------
@@ -61,11 +66,21 @@ extern "C" {
  *  @Field          Field2 member
  *  ----------------------------------------------------------------------------
  */
-enum __sem2_state_t; typedef enum __sem2_state_t sem2_state_t;
-enum __sem2_state_t
+enum __osa_sem_state_t; typedef enum __osa_sem_state_t osa_sem_state_t;
+enum __osa_sem_state_t
 {
-    OSA_SEM2_STATE_INIT = 0,
-    OSA_SEM2_STATE_EXIT = 1,
+    OSA_SEM_STATE_INIT = 0,
+    OSA_SEM_STATE_EXIT = 1,
+};
+
+struct __osa_sem_t
+{
+	unsigned int	m_count;
+	unsigned int	m_max_count;
+	osa_mutex_t	    m_mutex;
+	osa_cond_t	    m_cond;
+    volatile
+    unsigned int    m_state;
 };
 
 /*
@@ -144,99 +159,134 @@ enum __sem2_state_t
  *
  *  ============================================================================
  */
-status_t sem2_create(sem2_t *sem, unsigned int max_cnt, unsigned int init_value)
+status_t osa_sem_create(osa_sem_t *psem, unsigned int max_cnt, unsigned int init_value)
 {
-    status_t status = OSA_SOK;
-    pthread_mutexattr_t mutex_attr;
-    pthread_condattr_t cond_attr;
+    status_t          status = OSA_SOK;
+    struct __osa_sem_t * ps  = NULL;
 
-    status |= pthread_mutexattr_init(&mutex_attr);
-    status |= pthread_condattr_init(&cond_attr);
+    osa_sem_check_arguments(psem);
 
-    status |= pthread_mutex_init(&sem->m_mutex, &mutex_attr);
-    status |= pthread_cond_init(&sem->m_cond, &cond_attr);
-    
-    sem->m_count     = init_value;
-    sem->m_max_count = max_cnt;
+    (*psem) = INVALID_HANDLE;
 
-    if (sem->m_max_count == 0) {
-        sem->m_max_count = 1;
+    status = OSA_memAlloc(sizeof(struct __osa_sem_t), &ps);
+    if (OSA_ISERROR(status) || ps == NULL) {
+        return status;
     }
 
-    if (sem->m_count > sem->m_max_count) {
-        sem->m_count = sem->m_max_count;
+    status = osa_mutex_create(&ps->m_mutex);
+    if (OSA_ISERROR(status)) {
+        status |= OSA_memFree(sizeof(struct __osa_sem_t), ps);
+        return status;
+    }
+    status = osa_cond_create(&ps->m_cond);
+    if (OSA_ISERROR(status)) {
+        status |= osa_mutex_delete(&ps->m_mutex);
+        status |= OSA_memFree(sizeof(struct __osa_sem_t), ps);
+        return status;
     }
 
-    pthread_mutexattr_destroy(&mutex_attr);
-    pthread_condattr_destroy(&cond_attr);
+    ps->m_count     = init_value;
+    ps->m_max_count = max_cnt;
 
-    sem->m_state = OSA_SEM2_STATE_INIT;
+    if (ps->m_max_count == 0) {
+        ps->m_max_count = 1;
+    }
+
+    if (ps->m_count > ps->m_max_count) {
+        ps->m_count = ps->m_max_count;
+    }
+
+    ps->m_state = OSA_SEM_STATE_INIT;
+
+    (*psem) = (HANDLE)ps;
 
     return status;
 }
 
-status_t sem2_wait  (sem2_t *sem, unsigned int timeout)
+status_t osa_sem_wait  (osa_sem_t sem, unsigned int timeout)
 {
-    status_t status = OSA_EFAIL;
+    status_t           status = OSA_EFAIL;
+    struct __osa_sem_t * psem = (struct __osa_sem_t *)sem;
 
-    pthread_mutex_lock(&sem->m_mutex);
+    osa_sem_check_arguments(psem);
 
-    while (!sem2_is_exit(sem)) {
-        if (sem->m_count > 0) {
-            sem->m_count--;
+    osa_mutex_lock(psem->m_mutex);
+
+    while (!osa_sem_is_exit(psem)) {
+        if (psem->m_count > 0) {
+            psem->m_count--;
             status = OSA_SOK;
             break;
         } else {
-            if (timeout == OSA_TIMEOUT_NONE) {
-                break;
+            if (OSA_TIMEOUT_NONE == timeout) {
+                status = OSA_ETIMEOUT;
+            } else if (OSA_TIMEOUT_FOREVER == timeout) {
+                status = osa_cond_wait(psem->m_cond, psem->m_mutex);
+
+            } else {
+                status = osa_cond_timedwait(psem->m_cond, psem->m_mutex, timeout);
             }
 
-            status |= pthread_cond_wait(&sem->m_cond, &sem->m_mutex);
+            if (OSA_ISERROR(status)) {
+                break;
+            }
         }
     }
 
-    pthread_mutex_unlock(&sem->m_mutex);
+    osa_mutex_unlock(psem->m_mutex);
 
     return status;
 }
 
-status_t sem2_signal(sem2_t *sem)
+status_t osa_sem_signal(osa_sem_t sem)
 {
-    status_t status = OSA_SOK;
+    status_t           status = OSA_SOK;
+    struct __osa_sem_t * psem = (struct __osa_sem_t *)sem;
 
-    pthread_mutex_lock(&sem->m_mutex);
+    osa_sem_check_arguments(psem);
 
-    if (sem->m_count < sem->m_max_count) {
-        sem->m_count++;
-        status |= pthread_cond_signal(&sem->m_cond);
+    osa_mutex_lock(psem->m_mutex);
+
+    if (psem->m_count < psem->m_max_count) {
+        psem->m_count++;
+        status |= osa_cond_signal(psem->m_cond);
     }
 
-    pthread_mutex_unlock(&sem->m_mutex);
+    osa_mutex_unlock(psem->m_mutex);
 
     return status;
 }
 
-status_t sem2_exit  (sem2_t *sem)
+status_t osa_sem_exit  (osa_sem_t sem)
 {
-    status_t status = OSA_SOK;
+    status_t           status = OSA_SOK;
+    struct __osa_sem_t * psem = (struct __osa_sem_t *)sem;
 
-    pthread_mutex_lock(&sem->m_mutex);
+    osa_sem_check_arguments(psem);
 
-    sem->m_state = OSA_SEM2_STATE_EXIT;
+    osa_mutex_lock(psem->m_mutex);
 
-    pthread_cond_broadcast(&sem->m_cond);
+    psem->m_state = OSA_SEM_STATE_EXIT;
 
-    pthread_mutex_unlock(&sem->m_mutex);
+    osa_cond_broadcast(psem->m_cond);
+
+    osa_mutex_unlock(psem->m_mutex);
 
     return status;
 }
 
-status_t sem2_delete(sem2_t *sem)
+status_t osa_sem_delete(osa_sem_t *psem)
 {
-    status_t status = OSA_SOK;
+    status_t         status = OSA_SOK;
+    struct __osa_sem_t * ps = (struct __osa_sem_t *)(*psem);
 
-    pthread_cond_destroy(&sem->m_cond);
-    pthread_mutex_destroy(&sem->m_mutex);
+    osa_sem_check_arguments2(psem, ps);
+
+    status |= osa_cond_delete(&ps->m_cond);
+    status |= osa_mutex_delete(&ps->m_mutex);
+    status |= OSA_memFree(sizeof(struct __osa_sem_t), ps);
+
+    (*psem) = INVALID_HANDLE;
 
     return status;
 }

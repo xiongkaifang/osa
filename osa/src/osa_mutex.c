@@ -33,7 +33,13 @@
 /*  --------------------- Include system headers ---------------------------- */
 #include <time.h>
 #include <errno.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <process.h>
+#else
 #include <pthread.h>
+#endif
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
@@ -78,12 +84,20 @@ extern "C" {
  */
 struct __osa_mutex_t
 {
-    pthread_mutex_t m_mutex;
+#if defined(_WIN32)
+    CRITICAL_SECTION m_cs;
+#else
+    pthread_mutex_t  m_mutex;
+#endif
 };
 
 struct __osa_cond_t
 {
+#if defined(_WIN32)
+    CONDITION_VARIABLE m_cond;
+#else
     pthread_cond_t  m_cond;
+#endif
 };
 
 /*
@@ -165,7 +179,6 @@ struct __osa_cond_t
 status_t osa_mutex_create(osa_mutex_t *pmutex)
 {
     status_t               status = OSA_SOK;
-    pthread_mutexattr_t    mutex_attr;
     struct __osa_mutex_t * pmtx   = NULL;
 
     osa_mutex_check_arguments(pmutex);
@@ -177,10 +190,15 @@ status_t osa_mutex_create(osa_mutex_t *pmutex)
         return status;
     }
 
+#if defined(_WIN32)
+    InitializeCriticalSection(&pmtx->m_cs);
+#else
+    pthread_mutexattr_t    mutex_attr;
     status |= pthread_mutexattr_init(&mutex_attr);
     status |= pthread_mutex_init(&pmtx->m_mutex, &mutex_attr);
 
     pthread_mutexattr_destroy(&mutex_attr);
+#endif
 
     (*pmutex) = (osa_mutex_t)pmtx;
 
@@ -194,7 +212,11 @@ status_t osa_mutex_lock  (osa_mutex_t mutex)
 
     osa_mutex_check_arguments(pmutex);
 
+#if defined(_WIN32)
+    EnterCriticalSection(&pmutex->m_cs);
+#else
     pthread_mutex_lock(&pmutex->m_mutex);
+#endif
 
     return status;
 }
@@ -206,7 +228,11 @@ status_t osa_mutex_unlock(osa_mutex_t mutex)
 
     osa_mutex_check_arguments(pmutex);
 
+#if defined(_WIN32)
+    LeaveCriticalSection(&pmutex->m_cs);
+#else
     pthread_mutex_unlock(&pmutex->m_mutex);
+#endif
 
     return OSA_SOK;
 }
@@ -218,7 +244,11 @@ status_t osa_mutex_delete(osa_mutex_t *pmutex)
 
     osa_mutex_check_arguments2(pmutex, pmtx);
 
+#if defined(_WIN32)
+    DeleteCriticalSection(&pmutex->m_cs);
+#else
     pthread_mutex_destroy(&pmtx->m_mutex);
+#endif
 
     status |= OSA_memFree(sizeof(struct __osa_mutex_t), pmtx);
 
@@ -242,7 +272,11 @@ status_t osa_cond_create(osa_cond_t *pcond)
         return status;
     }
 
+#if defined(_WIN32)
+    InitializeConditionVariable(&pcnd->m_cond);
+#else
     pthread_cond_init(&pcnd->m_cond, NULL);
+#endif
 
     (*pcond) = (osa_cond_t)pcnd;
 
@@ -257,14 +291,17 @@ status_t osa_cond_wait  (osa_cond_t cond, osa_mutex_t mutex)
 
     osa_cond_check_arguments2(pcond, pmutex);
 
+#if defined(_WIN32)
+    SleepConditionVariableCS(&pcond->m_cond, &pmutex->m_cs, INFINITE);
+#else
     pthread_cond_wait(&pcond->m_cond, &pmutex->m_mutex);
+#endif
 
     return status;
 }
 
 status_t osa_cond_timedwait(osa_cond_t cond, osa_mutex_t mutex, unsigned int timeout)
 {
-    int                    retval;
     status_t               status = OSA_SOK;
     struct timespec        abstime;
     struct __osa_cond_t  * pcond  = (struct __osa_cond_t  *)cond;
@@ -272,10 +309,21 @@ status_t osa_cond_timedwait(osa_cond_t cond, osa_mutex_t mutex, unsigned int tim
 
     osa_cond_check_arguments2(pcond, pmutex);
 
+#if defined(_WIN32)
+    BOOL                   retval;
+    retval = SleepConditionVariableCS(&pcond->m_cond, &pmutex->m_cs, (DWORD)timeout);
+    if (retval) {
+        status = OSA_SOK;
+    } else {
+        status = OSA_ETIMEOUT;
+    }
+#else
     /*
      *  According to the Pthreads specification, we should use the absolute
      *  timeout.
      */
+    int                    retval;
+
 #if 0
     abstime.tv_sec   = timeout / 1000;
     abstime.tv_nsec  = (timeout % 1000) * 1000000;
@@ -299,6 +347,7 @@ status_t osa_cond_timedwait(osa_cond_t cond, osa_mutex_t mutex, unsigned int tim
     } else {
         status = OSA_EINVAL;
     }
+#endif
 
     return status;
 }
@@ -310,7 +359,11 @@ status_t osa_cond_signal(osa_cond_t cond)
 
     osa_cond_check_arguments(pcond);
 
+#if defined(_WIN32)
+    WakeConditionVariable(&pcond->m_cond);
+#else
     pthread_cond_signal(&pcond->m_cond);
+#endif
 
     return status;
 }
@@ -322,7 +375,11 @@ status_t osa_cond_broadcast(osa_cond_t cond)
 
     osa_cond_check_arguments(pcond);
 
+#if defined(_WIN32)
+    WakeAllConditionVariable(&pcond->m_cond);
+#else
     pthread_cond_broadcast(&pcond->m_cond);
+#endif
 
     return status;
 }
@@ -334,7 +391,11 @@ status_t osa_cond_delete(osa_cond_t *pcond)
 
     osa_cond_check_arguments2(pcond, pcnd);
 
+#if defined(_WIN32)
+    /* Nothing to be done! */
+#else
     pthread_cond_destroy(&pcnd->m_cond);
+#endif
 
     status |= OSA_memFree(sizeof(struct __osa_cond_t), pcnd);
 

@@ -46,7 +46,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+#if defined(_WIN32)
+#else
 #include <pthread.h>
+#endif
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa.h"
@@ -766,8 +770,11 @@ static status_t __threadpool_run_stub(void)
     osa_mutex_lock(pthdp->m_mutex);
 
     /* Register worker cleanup routine */
+#if defined(_WIN32)
+#else
     pthread_cleanup_push(
             (void (*)(void *))__threadpool_cleanup_worker, (void *)pthdp);
+#endif
 
     for ( ; ; ) {
 
@@ -801,14 +808,21 @@ static status_t __threadpool_run_stub(void)
          *
          */
         /* Register thread cleanup routine */
+#if defined(_WIN32)
+#else
         pthread_cleanup_push(
                 (void (*)(void *))__threadpool_cleanup_task, (void *)ptsk);
+#endif
 
         /* Process the task */
         status = task_common_main(&ptsk->m_tsk_ops, ptsk);
 
         /* Clean up task: Call ====> __threadpool_cleanup_task(thdp_hdl) */
+#if defined(_WIN32)
+        __threadpool_cleanup_task(ptsk);
+#else
         pthread_cleanup_pop(1);
+#endif
 
         ptsk = NULL;
 
@@ -823,7 +837,11 @@ static status_t __threadpool_run_stub(void)
     }
 
     /* Clean up worker: Call ====> __threadpool_cleanup_worker(thdp_hdl) */
+#if defined(_WIN32)
+    __threadpool_cleanup_worker(pthdp);
+#else
     pthread_cleanup_pop(1);
+#endif
 
     CAN_DBG(DBG_DETAILED, GT_NAME, "__threadpool_run_stub: Exit(status=0x%x).\n", status);
 
