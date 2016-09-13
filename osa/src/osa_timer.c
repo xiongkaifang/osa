@@ -34,6 +34,8 @@
  *  xiong-kaifang   2016-09-07     v1.3         Use routine 'task_check_state()'
  *                                              to check the state of the task.
  *
+ *  xiong-kaifang   2016-09-13     v1.4         Tweak somed codes.
+ *
  *  ============================================================================
  */
 
@@ -110,8 +112,6 @@ struct __osa_timer_object_t
     dlist_t         m_free_list;
 
     unsigned int    m_resync_done;
-    unsigned int    m_handle_done;
-
     unsigned int    m_elapsed_time;
 
     unsigned int    m_event_id;
@@ -251,9 +251,9 @@ status_t osa_timer_register(unsigned int *pid, unsigned int delay, osa_event_t *
 
 status_t osa_timer_update_event(unsigned int id, unsigned int new_delay)
 {
-	status_t            status  = OSA_SOK;
-	osa_event_object_t * pevent = NULL;
-	osa_timer_object_t * ptimer = &glb_osa_timer_obj;
+	status_t             status  = OSA_SOK;
+	osa_event_object_t * pevent  = NULL;
+	osa_timer_object_t * ptimer  = &glb_osa_timer_obj;
 	
 	osa_mutex_lock(ptimer->m_mutex);
 	
@@ -271,9 +271,9 @@ status_t osa_timer_update_event(unsigned int id, unsigned int new_delay)
 
 status_t osa_timer_unregister(unsigned int id)
 {
-    status_t            status  = OSA_SOK;
-    osa_event_object_t * pevent = NULL;
-    osa_timer_object_t * ptimer = &glb_osa_timer_obj;
+    status_t             status  = OSA_SOK;
+    osa_event_object_t * pevent  = NULL;
+    osa_timer_object_t * ptimer  = &glb_osa_timer_obj;
 
 	osa_mutex_lock(ptimer->m_mutex);
 
@@ -312,7 +312,7 @@ __osa_timer_init(osa_timer_object_t *ptimer)
     task_object_t * ptsk   = &ptimer->m_tsk_obj;
 
     /* Initiaize osa timer task */
-    ptimer->m_tsk_obj.m_name       = (char *)TSK_NAME;
+    ptimer->m_tsk_obj.m_name       = (unsigned char *)TSK_NAME;
     ptimer->m_tsk_obj.m_main       = __osa_timer_task_external_main;
     ptimer->m_tsk_obj.m_find       = NULL;
     ptimer->m_tsk_obj.m_pri        = 0;
@@ -387,7 +387,7 @@ static status_t
 __osa_timer_deinit(osa_timer_object_t *ptimer)
 {
     status_t        status = OSA_SOK;
-    task_object_t * ptsk  = &ptimer->m_tsk_obj;
+    task_object_t * ptsk   = &ptimer->m_tsk_obj;
 
     /* Unregister osa timer event */
     status = osa_timer_unregister(ptimer->m_timer_id);
@@ -406,11 +406,8 @@ __osa_timer_deinit(osa_timer_object_t *ptimer)
 static status_t 
 __osa_timer_task_external_main(task_t tsk, msg_t **msg, void *userdata)
 {
-    status_t status = OSA_SOK;
-    
-    osa_timer_object_t * ptimer = NULL;
-
-    ptimer = (osa_timer_object_t *)userdata;
+    status_t             status = OSA_SOK;
+    osa_timer_object_t * ptimer = (osa_timer_object_t *)userdata;
 
     switch (msg_get_cmd((*msg)))
     {
@@ -438,10 +435,10 @@ __osa_timer_task_external_main(task_t tsk, msg_t **msg, void *userdata)
 
 static status_t __osa_timer_do_initialize  (osa_timer_object_t *ptimer)
 {
-    int i;
+    int      i;
     status_t status = OSA_SOK;
 
-    //memset(ptimer, 0, sizeof(*ptimer));
+    osa_timer_check_arguments(ptimer);
 
     status |= dlist_init(&ptimer->m_event_list);
     status |= dlist_init(&ptimer->m_free_list);
@@ -459,9 +456,8 @@ static status_t __osa_timer_do_initialize  (osa_timer_object_t *ptimer)
 
     ptimer->m_elapsed_time = 0;
 
-    /* Set two flags used to synchronize and handle events */
+    /* Set flag used to synchronize and handle events */
     ptimer->m_resync_done = FALSE;
-    ptimer->m_handle_done = FALSE;
 
     return status;
 }
@@ -469,6 +465,8 @@ static status_t __osa_timer_do_initialize  (osa_timer_object_t *ptimer)
 static status_t __osa_timer_do_deinitialize(osa_timer_object_t *ptimer)
 {
     status_t status = OSA_SOK;
+
+    osa_timer_check_arguments(ptimer);
 
     /* TODO: Delste the osa timer event */
     status |= osa_mutex_lock  (ptimer->m_mutex);
@@ -486,27 +484,10 @@ static status_t __osa_timer_do_deinitialize(osa_timer_object_t *ptimer)
 static int
 __osa_timer_event_resync_apply_fxn(dlist_element_t * elem, void * data)
 {
-    osa_event_object_t * pevent = NULL;
-    osa_timer_object_t * ptimer = NULL;
+    osa_event_object_t * pevent = (osa_event_object_t *)elem;
+    osa_timer_object_t * ptimer = (osa_timer_object_t *)data;
 
-    if (elem == NULL || data == NULL) {
-        return 0;
-    }
-
-    pevent = (osa_event_object_t *)elem;
-    ptimer = (osa_timer_object_t *)data;
-
-#if 0
-    if (ptimer->m_elapsed_time >= pevent->m_delta_delay) {
-        pevent->m_delta_delay   = 0;
-        ptimer->m_elapsed_time -= pevent->m_delta_delay;
-    } else {
-        if (!ptimer->m_resync_done) {
-            pevent->m_delta_delay -= ptimer->m_elapsed_time;
-            ptimer->m_resync_done  = TRUE;
-        }
-    }
-#endif
+    osa_timer_check_arguments2(pevent, ptimer);
 
     if (!ptimer->m_resync_done) {
         if (ptimer->m_elapsed_time >= pevent->m_delta_delay) {
@@ -524,30 +505,22 @@ __osa_timer_event_resync_apply_fxn(dlist_element_t * elem, void * data)
 static int
 __osa_timer_event_handle_apply_fxn(dlist_element_t * elem, void * data)
 {
-    osa_event_object_t * pevent = NULL;
-    osa_timer_object_t * ptimer = NULL;
+    osa_event_object_t * pevent = (osa_event_object_t *)elem;
+    osa_timer_object_t * ptimer = (osa_timer_object_t *)data;
 
-    if (elem == NULL || data == NULL) {
-        return 0;
-    }
+    osa_timer_check_arguments2(pevent, ptimer);
 
-    pevent = (osa_event_object_t *)elem;
-    ptimer = (osa_timer_object_t *)data;
-    
-#if 0
-    if ((!ptimer->m_handle_done) && pevent->m_delta_delay == 0) {
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Sep 13, 2016.
+     *
+     *  Desctiption:
+     *
+     *      We handle all timeouted event.
+     */
+    if (!pevent->m_delta_delay) {
         (*pevent->m_event.m_fxn)(pevent->m_event.m_ud);
-    } else {
-        ptimer->m_handle_done = TRUE;
-    }
-#endif
-
-    if (!ptimer->m_handle_done) {
-        if (pevent->m_delta_delay == 0) {
-            (*pevent->m_event.m_fxn)(pevent->m_event.m_ud);
-        } else {
-            ptimer->m_handle_done = TRUE;
-        }
     }
 
     return 0;
@@ -580,13 +553,9 @@ static status_t
 __osa_timer_synchronize(task_t tsk, msg_t *msg, void *userdata)
 {
     status_t             status = OSA_SOK;
-    osa_timer_object_t * ptimer = NULL;
+    osa_timer_object_t * ptimer = (osa_timer_object_t *)userdata;
 
-    ptimer = (osa_timer_object_t *)userdata;
-
-    if (ptimer == NULL) {
-        return OSA_EARGS;
-    }
+    osa_timer_check_arguments(ptimer);
 
     switch (msg_get_cmd(msg))
     {
@@ -603,12 +572,14 @@ __osa_timer_synchronize(task_t tsk, msg_t *msg, void *userdata)
 
 static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, msg_t **msg)
 {
-    int i;
-    unsigned int micro_time_sleep = 0;
-    struct timeval now_time;
-    osa_event_object_t *pevent = NULL;
-    osa_event_object_t *pnext_node = NULL;
-    status_t status = OSA_SOK;
+    int                  i;
+    status_t             status           = OSA_SOK;
+    unsigned int         micro_time_sleep = 0;
+    struct timeval       now_time;
+    osa_event_object_t * pevent           = NULL;
+    osa_event_object_t * pnext_node       = NULL;
+
+    osa_timer_check_arguments(ptimer);
 
     /*
      *  Note: if we do not return from this routine right now, ack the msg first.
@@ -636,17 +607,29 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
                 micro_time_sleep = pevent->m_delta_delay;
             }
 
-            //usleep(micro_time_sleep);
             __osa_timer_nanosleep(micro_time_sleep);
         }
 
         /* Re-synchronize registered events */
         gettimeofday(&now_time, NULL);
         timersub(&now_time, &ptimer->m_sync_time, &ptimer->m_temp_time);
+#if 0
+        /*
+         *  Modified by: xiong-kaifang.
+         *
+         *  Date       : Sep 13, 2016.
+         *
+         *  Desctiption:
+         *
+         *      Comment out below codes, the same check is already done
+         *      in 'timersub()' routine.
+         *
+         */
         if (ptimer->m_temp_time.tv_usec < 0) {
             ptimer->m_temp_time.tv_usec += MILLIONS;
             ptimer->m_temp_time.tv_sec  -= 1;
         }
+#endif
         if (ptimer->m_temp_time.tv_sec < 0) {
             ptimer->m_temp_time.tv_usec  = 0;
             ptimer->m_temp_time.tv_sec   = 0;
@@ -662,7 +645,7 @@ static status_t __osa_timer_do_process(osa_timer_object_t *ptimer, task_t tsk, m
         ptimer->m_resync_done = FALSE;
         status = dlist_map(&ptimer->m_event_list, __osa_timer_event_resync_apply_fxn, (void *)ptimer);
 
-        ptimer->m_handle_done = FALSE;
+        /* Handle the timeouted event */
         status = dlist_map(&ptimer->m_event_list, __osa_timer_event_handle_apply_fxn, (void *)ptimer);
 
         status = dlist_first(&ptimer->m_event_list, (dlist_element_t **)&pevent);
@@ -699,12 +682,9 @@ __osa_timer_event_comp_match_fxn(dlist_element_t *elem, void *data)
 static bool
 __osa_timer_event_add_comp_match_fxn(dlist_element_t *elem, void *data)
 {
-    osa_event_object_t * pcur_event = NULL;
-	osa_event_object_t * pnew_event = NULL;
+    osa_event_object_t * pcur_event = (osa_event_object_t *)elem;
+	osa_event_object_t * pnew_event = (osa_event_object_t *)data;
 	
-	pcur_event = (osa_event_object_t *)elem;
-	pnew_event = (osa_event_object_t *)data;
-
 	if (pnew_event->m_delta_delay >= pcur_event->m_delta_delay) {
 		pnew_event->m_delta_delay -= pcur_event->m_delta_delay;
 		
@@ -722,6 +702,19 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
 	status_t             status     = OSA_SOK;
     struct timeval       now_time;
 	osa_event_object_t * pnext_node = NULL;
+
+#if 0
+    /*
+     *  Modified by: xiong-kaifang.
+     *
+     *  Date       : Sep 13, 2016.
+     *
+     *  Desctiption:
+     *
+     *      Comment out below codes, it's no longer needed.
+     *      We should add the event to the eventlist as quicalyk as possiable.
+     *
+     */
 
     /*
      *  Re-synchronize osa timer event.
@@ -744,6 +737,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
 
     ptimer->m_resync_done = FALSE;
     status = dlist_map(&ptimer->m_event_list, __osa_timer_event_resync_apply_fxn, (void *)ptimer);
+#endif
 
 	status = dlist_search_element(&ptimer->m_event_list, (void *)pevent,
 	                              (dlist_element_t **)&pnext_node, __osa_timer_event_add_comp_match_fxn);
@@ -776,7 +770,7 @@ __osa_timer_add_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
 static status_t
 __osa_timer_del_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent)
 {
-	status_t             status = OSA_SOK;
+	status_t             status     = OSA_SOK;
 	osa_event_object_t * pnext_node = NULL;
 	
 	status = dlist_next(&ptimer->m_event_list, (dlist_element_t *)pevent, (dlist_element_t **)&pnext_node);
@@ -808,11 +802,10 @@ __osa_timer_update_event(osa_timer_object_t *ptimer, osa_event_object_t *pevent,
 static void
 __osa_timer_nanosleep(unsigned int micro_secs)
 {
+    int             ret;
     struct timespec delay_time, remain_time;
-    int ret;
 
     delay_time.tv_sec  = micro_secs / MILLIONS;
-
     delay_time.tv_nsec = (micro_secs % MILLIONS) * 1000;
 
     do {
