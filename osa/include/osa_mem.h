@@ -26,6 +26,8 @@
  *
  *  xiong-kaifang   2013-04-06     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2016-10-06     v1.1	        Add more memory funcions
+ *                                              wrapper.
  *
  *  ============================================================================
  */
@@ -112,6 +114,12 @@ struct __mem_params_t
 status_t mem_alloc(size_t size, mem_params_t *prm, void **ptr);
 
 status_t mem_free(size_t size, mem_params_t *prm, void *ptr);
+
+void *   osa_malloc (size_t size);
+void *   osa_mallocz(size_t size);
+void *   osa_calloc (size_t nmemb, size_t size);
+void *   osa_realloc(void * ptr, size_t size);
+void     osa_free   (void * ptr);
 
 #if defined(__cplusplus)
 }

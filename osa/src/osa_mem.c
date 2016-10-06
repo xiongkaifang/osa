@@ -21,12 +21,15 @@
  *
  *  xiong-kaifang   2013-04-06     v1.0	        Write this module.
  *
+ *  xiong-kaifang   2016-10-06     v1.1	        Add more memory funcions
+ *                                              wrapper.
  *
  *  ============================================================================
  */
 
 /*  --------------------- Include system headers ---------------------------- */
 #include <stdlib.h>
+#include <string.h>
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "osa_mem.h"
@@ -153,6 +156,37 @@ status_t mem_free(size_t size, mem_params_t *prm, void *ptr)
     }
 
     return OSA_SOK;
+}
+
+void *  osa_malloc (size_t size)
+{
+    return malloc(size);
+}
+
+void *  osa_mallocz(size_t size)
+{
+    void * ptr = osa_malloc(size);
+
+    if (ptr) {
+        memset(ptr, 0, size);
+    }
+
+    return ptr;
+}
+
+void *  osa_calloc (size_t nmemb, size_t size)
+{
+    return calloc(nmemb, size);
+}
+
+void *  osa_realloc(void * ptr, size_t size)
+{
+    return realloc(ptr, size);
+}
+
+void    osa_free   (void * ptr)
+{
+    free(ptr);
 }
 
 /*
