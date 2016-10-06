@@ -30,6 +30,9 @@
  *                                              to be compatible with 64bits
  *                                              system.
  *
+ *  xiong-kaifang   2015-10-06     v1.2         1. Tweak message data type.
+ *                                              2. Add message priority flags.
+ *
  *  ============================================================================
  */
 
@@ -100,13 +103,13 @@ struct __std_msg_t
     unsigned long       m_reserved2;
     void              * m_prm;
     unsigned int        m_size;
-    unsigned short      m_cmd;
-    unsigned short      m_flags;
+    unsigned int        m_cmd;
+    unsigned int        m_flags;
     unsigned int        m_status;
     unsigned int        m_msg_size;
     unsigned int        m_msg_id;
 
-    unsigned char       __pading[24];
+    unsigned char       __pading[20];
 };
 
 struct __msgq_msg_t; typedef struct __msgq_msg_t msgq_msg_t;
@@ -151,8 +154,27 @@ typedef enum msg_type_t {
 enum __msg_flags_t; typedef enum __msg_flags_t msg_flags_t;
 enum __msg_flags_t
 {
-    MSG_FLAGS_WAIT_ACK = 1 << 0,
-    MSG_FLAGS_FREE_PRM = 1 << 1,
+    /* System level priority            */
+    MSG_FLAGS_SYS_PRI_HGH = 1 << 0,
+    MSG_FLAGS_SYS_PRI_MID = 1 << 1,
+    MSG_FLAGS_SYS_PRI_LOW = 1 << 2,
+
+    /* User level priority              */
+    MSG_FLAGS_USR_PRI_HGH = 1 << 4,
+    MSG_FLAGS_USR_PRI_MID = 1 << 5,
+    MSG_FLAGS_USR_PRI_LOW = 1 << 6,
+
+    /* Default msg priority             */
+    MSG_FLAGS_DEFAULT_PRI = MSG_FLAGS_USR_PRI_LOW,
+
+    /* Message priority mask            */
+    MSG_FLAGS_PRI_MASK    = 0x00FF,
+
+    /* Msg need reply on time           */
+    MSG_FLAGS_WAIT_ACK    = 1 << 8,
+
+    /* The msg receiver need free prm   */
+    MSG_FLAGS_FREE_PRM    = 1 << 9
 };
 
 /*

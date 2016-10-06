@@ -313,6 +313,7 @@ status_t msgq_alloc(unsigned short size, msg_t **msg)
         status = OSA_memAlloc(size, msg);
         if (!OSA_ISERROR(status) && (*msg) != NULL) {
             msg_init((*msg));
+            msg_set_flags((*msg), MSG_FLAGS_DEFAULT_PRI);
             msg_set_msg_id((*msg), __msgq_mgr_get_msg_id());
         }
     }
@@ -327,6 +328,8 @@ status_t msgq_free(unsigned short size, msg_t *msg)
 
     msgq_check_arguments(msg);
 
+    msg_clear_flags(msg, MSG_FLAGS_PRI_MASK);
+    msg_set_flags(msg, MSG_FLAGS_DEFAULT_PRI);
     status |= osa_mutex_lock  (pmgr->m_mutex);
     status |= dlist_put_tail(&pmgr->m_msgs_pool, (dlist_element_t *)msg);
     status |= osa_mutex_unlock(pmgr->m_mutex);

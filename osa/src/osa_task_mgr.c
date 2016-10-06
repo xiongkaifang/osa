@@ -695,6 +695,21 @@ __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, uns
     msg_set_cmd(msg, cmd);
     msg_set_payload_ptr(msg, prm);
     msg_set_payload_size(msg, size);
+
+    /*
+     *  Added by   : xiong-kaifang.
+     *
+     *  Date       : Oct 06, 2016.
+     *
+     *  Description:
+     *
+     *      If user doesn't set msg priority, using the default value.
+     *
+     */
+    msg_clear_flags(msg, MSG_FLAGS_PRI_MASK);
+    if (!(flags & MSG_FLAGS_PRI_MASK)) {
+        flags |= MSG_FLAGS_USR_DEFAULT_PRI;
+    }
     msg_set_flags(msg, flags);
     msg_set_msg_size(msg, sizeof(*msg));
 
