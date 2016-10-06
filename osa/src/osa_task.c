@@ -37,6 +37,9 @@
  *  xiong-kaifang   2016-09-07     v1.3         Set task state before sending
  *                                              ack message.
  *
+ *  xiong-kaifang   2016-10-06     v1.4         Process all pending messages
+ *                                              before task return.
+ *
  *  ============================================================================
  */
 
@@ -224,6 +227,9 @@ __tasklist_deinitialize(struct __tasklist_t *ptsklist);
 static int __task_internal_main(void *userdata);
 
 static int __task_internal_exit(void *userdata);
+
+static status_t
+__task_check_msg_internal(task_t tsk, msg_t **msg, msg_type_t msgt);
 
 /*
  *  --------------------- Public function definition ---------------------------
@@ -801,6 +807,32 @@ static int __task_internal_main(void *userdata)
         }
     }
 
+    /*
+     *  Added by   : xiong-kaifang.
+     *
+     *  Date       : Oct 04, 2016.
+     *
+     *  Description:
+     *
+     *      We should process all pending messages before we return.
+     *
+     */
+    pmsg   = NULL;
+    status = __task_check_msg_internal((task_t)ptsk, &pmsg, MSG_TYPE_CMD);
+    while (!OSA_ISERROR(status) && pmsg != NULL) {
+
+        /* Call the user's main function */
+        status = ptsk->m_tsk_main((task_t)ptsk, &pmsg, ptsk->m_userdata);
+
+        if (pmsg != NULL) {
+            msg_set_status(pmsg, status);
+            task_ack_free_msg((task_t)ptsk, pmsg);
+        }
+
+        pmsg   = NULL;
+        status = __task_check_msg_internal((task_t)ptsk, &pmsg, MSG_TYPE_CMD);
+    }
+
     return status;
 }
 
@@ -839,6 +871,16 @@ static int __task_internal_exit(void *userdata)
     }
 
     return status;
+}
+
+static status_t
+__task_check_msg_internal(task_t tsk, msg_t **msg, msg_type_t msgt)
+{
+    struct __task_t * ptsk = (struct __task_t *)tsk;
+
+    task_check_arguments2(ptsk, msg);
+
+    return mailbox_check_msg(ptsk->m_mbx, msg, msgt);
 }
 
 #if defined(__cplusplus)
