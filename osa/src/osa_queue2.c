@@ -25,6 +25,8 @@
  *                                                 queue2 object(queue2_t).
  *                                              2. Add codes to check arguments.
  *
+ *  xiong-kaifang   2016-10-07     v1.2         Remove unnecessary code.
+ *
  *  ============================================================================
  */
 
@@ -78,9 +80,6 @@ struct __queue2_t
 
     osa_mutex_t     m_mutex;
     osa_cond_t      m_rd_cond;
-#if 0
-    osa_cond_t      m_exit_cond;
-#endif
 
     dlist_t         m_queue;
     int             m_exit;
@@ -184,9 +183,6 @@ status_t queue2_create(queue2_t *pque)
     }
 
     status = osa_cond_create (&pqueue->m_rd_cond);
-#if 0
-    status = osa_cond_create (&pqueue->m_exit_cond);
-#endif
     if (OSA_ISERROR(status)) {
         osa_mutex_delete(&pqueue->m_mutex);
         OSA_memFree(sizeof(struct __queue2_t), pqueue);
@@ -196,8 +192,6 @@ status_t queue2_create(queue2_t *pque)
     status |= dlist_init(&pqueue->m_queue);
 
     pqueue->m_state = QUEUE2_STATE_INIT;
-    pqueue->m_exit  = 0;
-    pqueue->m_read  = 0;
 
     (*pque) = (queue2_t)pqueue;
 
@@ -234,10 +228,6 @@ status_t queue2_get(queue2_t que, void **ppvalue, unsigned int timeout)
 
     osa_mutex_lock(pque->m_mutex);
 
-#if 0
-    pque->m_read = 1;
-#endif
-
     while (!queue2_is_exit(pque)) {
 
         if (!dlist_is_empty(&pque->m_queue)) {
@@ -249,22 +239,23 @@ status_t queue2_get(queue2_t que, void **ppvalue, unsigned int timeout)
             status = OSA_SOK;
             break;
         } else {
-            if (timeout == OSA_TIMEOUT_NONE) {
+            if (OSA_TIMEOUT_NONE == timeout) {
                 break;
+            } else if (OSA_TIMEOUT_FOREVER == timeout) {
+                status = osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
+            } else {
+                status = osa_cond_timedwait(pque->m_rd_cond, pque->m_mutex, timeout);
             }
 
-            status = osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
+            if (queue2_is_exit(pque)) {
+                status = OSA_EFAIL;
+            }
+            if (OSA_ISERROR(status)) {
+                break;
+            }
         }
     }
 
-#if 0
-    if (pque->m_exit) {
-        pque->m_exit = 0;
-        osa_cond_signal(pque->m_exit_cond);
-    }
-
-    pque->m_read = 0;
-#endif
     osa_mutex_unlock(pque->m_mutex);
 
     return status;
@@ -311,17 +302,9 @@ bool_t   queue2_is_empty(queue2_t que)
     bool_t              is_empty;
     struct __queue2_t * pque = (struct __queue2_t *)que;
 
-#if 0
-
-    queue2_check_arguments(pque);
-
-#else
-
     if (pque == NULL) {
         return FALSE;
     }
-
-#endif
 
     osa_mutex_lock  (pque->m_mutex);
 
@@ -383,24 +366,6 @@ status_t queue2_delete(queue2_t *pque)
     struct __queue2_t * pqueue = (struct __queue2_t *)(*pque);
 
     queue2_check_arguments2(pque, pqueue);
-
-    /*
-     *  TODO:
-     */
-#if 0
-    fprintf(stderr, "queue2 get mutex.\n");
-    osa_mutex_lock  (pqueue->m_mutex);
-    pqueue->m_state = QUEUE2_STATE_EXIT;
-    pqueue->m_exit = 1;
-    fprintf(stderr, "queue2 cond broadcast.\n");
-    osa_cond_broadcast(pqueue->m_rd_cond);
-    while (pqueue->m_exit && pqueue->m_read) {
-        osa_cond_wait(pqueue->m_exit_cond, pqueue->m_mutex);
-    }
-    osa_mutex_unlock(pqueue->m_mutex);
-    status |= osa_cond_delete (&pqueue->m_exit_cond);
-
-#endif
 
     status |= osa_cond_delete (&pqueue->m_rd_cond);
     status |= osa_mutex_delete(&pqueue->m_mutex);
