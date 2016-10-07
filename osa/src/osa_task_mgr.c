@@ -708,7 +708,7 @@ __task_mgr_synchronize(task_t to, task_t frm, unsigned short cmd, void *prm, uns
      */
     msg_clear_flags(msg, MSG_FLAGS_PRI_MASK);
     if (!(flags & MSG_FLAGS_PRI_MASK)) {
-        flags |= MSG_FLAGS_USR_DEFAULT_PRI;
+        flags |= MSG_FLAGS_DEFAULT_PRI;
     }
     msg_set_flags(msg, flags);
     msg_set_msg_size(msg, sizeof(*msg));
