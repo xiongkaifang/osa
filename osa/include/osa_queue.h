@@ -28,6 +28,10 @@
  *  xiong-kaifang   2015-09-19     v1.1         1. Using opaque type for queue.
  *                                              2. Tweak queue's prototype.
  *
+ *  xiong-kaifang   2016-10-07     v1.2         1. Tweak queue's prototype.
+ *                                              2. Add callback to clean up
+ *                                              queue.
+ *
  *  ============================================================================
  */
 
@@ -77,6 +81,8 @@ enum __queue_state_t
  */
 typedef HANDLE      queue_t;
 
+typedef void     (* QUE_CLEANUP)(void * value, void * userdata);
+
 /*
  *  --------------------- Public function declaration --------------------------
  */
@@ -109,16 +115,15 @@ typedef HANDLE      queue_t;
  *
  *  ============================================================================
  */
-status_t queue_create(queue_t *pque, unsigned int max_len);
-status_t queue_put(queue_t que, unsigned long value, unsigned int timeout);
-status_t queue_get(queue_t que, unsigned long *pvalue, unsigned int timeout);
-status_t queue_peek(queue_t que, unsigned long *pvalue);
-status_t queue_count(queue_t que, unsigned int *pcount);
-bool_t   queue_is_empty(queue_t que);
-status_t queue_exit(queue_t que);
-status_t queue_set_state(queue_t que, queue_state_t state);
-status_t queue_reset(queue_t que);
-status_t queue_delete(queue_t *queue);
+status_t queue_create  (queue_t * pque, unsigned int max_len);
+status_t queue_put     (queue_t   que , void * value, unsigned int timeout);
+status_t queue_get     (queue_t   que , void ** pvalue, unsigned int timeout);
+status_t queue_peek    (queue_t   que , void ** pvalue);
+status_t queue_count   (queue_t   que , unsigned int * pcount);
+bool_t   queue_is_empty(queue_t   que);
+bool_t   queue_is_full (queue_t   que);
+status_t queue_exit    (queue_t   que , QUE_CLEANUP cleanup, void * userdata);
+status_t queue_delete  (queue_t * pque);
 
 #if defined(__cplusplus)
 }

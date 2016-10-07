@@ -25,6 +25,10 @@
  *                                                 queue object(queue_t).
  *                                              2. Add codes to check arguments.
  *
+ *  xiong-kaifang   2016-10-07     v1.2         1. Tweak queue's prototype.
+ *                                              2. Add callback to clean up
+ *                                              queue.
+ *
  *  ============================================================================
  */
 
@@ -75,7 +79,7 @@ struct __queue_t
 	unsigned int	m_wr_idx;
 	unsigned int	m_len;
 	unsigned int	m_count;
-	unsigned long * m_queue;
+	void **         m_queue;
 
     osa_mutex_t     m_mutex;
 	osa_cond_t	    m_rd_cond;
@@ -160,7 +164,7 @@ struct __queue_t
  *
  *  ============================================================================
  */
-status_t queue_create(queue_t *pque, unsigned int max_len)
+status_t queue_create  (queue_t * pque, unsigned int max_len)
 {
     int                size;
     status_t           status = OSA_SOK;
@@ -170,7 +174,7 @@ status_t queue_create(queue_t *pque, unsigned int max_len)
 
     (*pque) = INVALID_HANDLE;
 
-    size = sizeof(struct __queue_t) + sizeof(unsigned long) * max_len;
+    size = sizeof(struct __queue_t) + sizeof(void *) * max_len;
     status = OSA_memAlloc(size, &que);
     if (OSA_ISERROR(status) || que == NULL) {
         return status;
@@ -199,7 +203,7 @@ status_t queue_create(queue_t *pque, unsigned int max_len)
     que->m_wr_idx = 0;
     que->m_count  = 0;
     que->m_len    = max_len;
-    que->m_queue  = (unsigned long *)(que + 1);
+    que->m_queue  = (void **)(que + 1);
 
     que->m_state  = QUEUE_STATE_INIT;
 
@@ -208,9 +212,9 @@ status_t queue_create(queue_t *pque, unsigned int max_len)
     return status;
 }
 
-status_t queue_put(queue_t que, unsigned long value, unsigned int timeout)
+status_t queue_put     (queue_t   que , void * value, unsigned int timeout)
 {
-    status_t           status = OSA_SOK;
+    status_t           status = OSA_EFAIL;
     struct __queue_t * pque   = (struct __queue_t *)que;
 
     queue_check_arguments(pque);
@@ -226,11 +230,20 @@ status_t queue_put(queue_t que, unsigned long value, unsigned int timeout)
             osa_cond_signal(pque->m_rd_cond);
             break;
         } else {
-            if (timeout == OSA_TIMEOUT_NONE) {
+            if (OSA_TIMEOUT_NONE == timeout) {
                 break;
+            } else if (OSA_TIMEOUT_FOREVER == timeout) {
+                status = osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
+            } else {
+                status = osa_cond_timedwait(pque->m_rd_cond, pque->m_mutex, timeout);
             }
 
-            status |= osa_cond_wait(pque->m_wr_cond, pque->m_mutex);
+            if (queue_is_exit(pque)) {
+                status = OSA_EFAIL;
+            }
+            if (OSA_ISERROR(status)) {
+                break;
+            }
         }
     }
 
@@ -239,9 +252,9 @@ status_t queue_put(queue_t que, unsigned long value, unsigned int timeout)
     return status;
 }
 
-status_t queue_get(queue_t que, unsigned long *pvalue, unsigned int timeout)
+status_t queue_get     (queue_t   que , void ** pvalue, unsigned int timeout)
 {
-    status_t           status = OSA_SOK;
+    status_t           status = OSA_EFAIL;
     struct __queue_t * pque   = (struct __queue_t *)que;
 
     queue_check_arguments(pque);
@@ -261,11 +274,20 @@ status_t queue_get(queue_t que, unsigned long *pvalue, unsigned int timeout)
             osa_cond_signal(pque->m_wr_cond);
             break;
         } else {
-            if (timeout == OSA_TIMEOUT_NONE) {
+            if (OSA_TIMEOUT_NONE == timeout) {
                 break;
+            } else if (OSA_TIMEOUT_FOREVER == timeout) {
+                status = osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
+            } else {
+                status = osa_cond_timedwait(pque->m_rd_cond, pque->m_mutex, timeout);
             }
 
-            status |= osa_cond_wait(pque->m_rd_cond, pque->m_mutex);
+            if (queue_is_exit(pque)) {
+                status = OSA_EFAIL;
+            }
+            if (OSA_ISERROR(status)) {
+                break;
+            }
         }
     }
 
@@ -274,7 +296,7 @@ status_t queue_get(queue_t que, unsigned long *pvalue, unsigned int timeout)
     return status;
 }
 
-status_t queue_peek(queue_t que, unsigned long *pvalue)
+status_t queue_peek    (queue_t   que , void ** pvalue)
 {
     status_t           status = OSA_SOK;
     struct __queue_t * pque   = (struct __queue_t *)que;
@@ -294,7 +316,7 @@ status_t queue_peek(queue_t que, unsigned long *pvalue)
     return status;
 }
 
-status_t queue_count(queue_t que, unsigned int *pcount)
+status_t queue_count   (queue_t   que , unsigned int * pcount)
 {
     status_t           status = OSA_SOK;
     struct __queue_t * pque   = (struct __queue_t *)que;
@@ -312,7 +334,7 @@ status_t queue_count(queue_t que, unsigned int *pcount)
     return status;
 }
 
-bool_t   queue_is_empty(queue_t que)
+bool_t   queue_is_empty(queue_t   que)
 {
     bool_t             is_empty = FALSE;
     struct __queue_t * pque     = (struct __queue_t *)que;
@@ -334,34 +356,31 @@ bool_t   queue_is_empty(queue_t que)
     return is_empty;
 }
 
-status_t queue_exit(queue_t que)
+bool_t   queue_is_full (queue_t   que)
 {
-    return queue_set_state(que, QUEUE_STATE_EXIT);
-}
+    bool_t             is_full = FALSE;
+    struct __queue_t * pque    = (struct __queue_t *)que;
 
-status_t queue_set_state(queue_t que, queue_state_t state)
-{
-    status_t           status = OSA_SOK;
-    struct __queue_t * pque   = (struct __queue_t *)que;
-
-    queue_check_arguments(pque);
+    if (pque == NULL) {
+        return is_full;
+    }
 
     osa_mutex_lock(pque->m_mutex);
 
-    pque->m_state = state;
-
-    if (queue_is_exit(pque)) {
-        osa_cond_broadcast(pque->m_wr_cond);
-        osa_cond_broadcast(pque->m_rd_cond);
+    if (pque->m_count == pque->m_len) {
+        is_full = TRUE;
+    } else {
+        is_full = FALSE;
     }
 
     osa_mutex_unlock(pque->m_mutex);
 
-    return status;
+    return is_full;
 }
 
-status_t queue_reset(queue_t que)
+status_t queue_exit    (queue_t   que , QUE_CLEANUP cleanup, void * userdata)
 {
+    void *             elem   = NULL;
     status_t           status = OSA_SOK;
     struct __queue_t * pque   = (struct __queue_t *)que;
 
@@ -369,16 +388,29 @@ status_t queue_reset(queue_t que)
 
     osa_mutex_lock(pque->m_mutex);
 
-    pque->m_rd_idx = 0;
-    pque->m_wr_idx = 0;
-    pque->m_count  = 0;
+    pque->m_state = QUEUE_STATE_EXIT;
+
+    /* Clean up all elements */
+    if (cleanup) {
+        while (pque->m_count) {
+            elem = pque->m_queue[pque->m_rd_idx];
+            pque->m_rd_idx = (pque->m_rd_idx + 1) % pque->m_len;
+            pque->m_count--;
+
+            (*cleanup)(elem, userdata);
+        }
+    }
+
+    /* Notify others */
+    osa_cond_broadcast(pque->m_wr_cond);
+    osa_cond_broadcast(pque->m_rd_cond);
 
     osa_mutex_unlock(pque->m_mutex);
 
     return status;
 }
 
-status_t queue_delete(queue_t *pque)
+status_t queue_delete  (queue_t * pque)
 {
     int                size;
     status_t           status = OSA_SOK;
@@ -390,7 +422,7 @@ status_t queue_delete(queue_t *pque)
     status |= osa_cond_delete (&que->m_rd_cond);
     status |= osa_mutex_delete(&que->m_mutex);
 
-    size = sizeof(struct __queue_t) + sizeof(unsigned long) * que->m_len;
+    size = sizeof(struct __queue_t) + sizeof(void *) * que->m_len;
     status |= OSA_memFree(size, que);
 
     (*pque) = INVALID_HANDLE;
