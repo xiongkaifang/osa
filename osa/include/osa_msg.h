@@ -44,6 +44,7 @@
 
 /*  --------------------- Include user headers   ---------------------------- */
 #include "dlist.h"
+#include "std_defs.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -68,6 +69,7 @@ extern "C" {
 #define	msg_get_status(msg)				(((msg_t *)(msg))->u.m_std_msg.m_status)
 #define msg_get_msg_size(msg)           (((msg_t *)(msg))->u.m_std_msg.m_msg_size)
 #define msg_get_msg_id(msg)             (((msg_t *)(msg))->u.m_std_msg.m_msg_id)
+#define msg_get_priority(msg)           (msg_get_flags(msg) & MSG_FLAGS_PRI_MASK)
 
 #define	msg_set_src(msg, src)			(((msg_t *)(msg))->u.m_std_msg.m_reserved1 = (src))
 #define	msg_set_dst(msg, dst)			(((msg_t *)(msg))->u.m_std_msg.m_reserved2 = (dst))
@@ -98,7 +100,6 @@ extern "C" {
 struct __std_msg_t; typedef struct __std_msg_t std_msg_t;
 struct __std_msg_t
 {
-    DLIST_ELEMENT_RESERVED;
     unsigned long       m_reserved1;
     unsigned long       m_reserved2;
     void              * m_prm;
@@ -137,11 +138,14 @@ struct __tsk_msg_t
 struct __msg_t; typedef struct __msg_t msg_t;
 struct __msg_t
 {
+    OSA_HEAD_RESERVED;
+
     union {
         std_msg_t       m_std_msg;
         msgq_msg_t      m_msgq_msg;
         mbx_msg_t       m_mbx_msg;
         tsk_msg_t       m_tsk_msg;
+        char            __padding[128 - sizeof(osa_head_t)];
     } u;
 };
 

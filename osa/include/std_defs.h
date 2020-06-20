@@ -74,6 +74,10 @@ extern "C" {
 
 #define HANDLE_TO_POINTER(h)    ((void *)(h))
 
+#define OSA_HEAD_RESERVED_NUM   (4)
+
+#define OSA_HEAD_RESERVED       osa_head_t m_head
+
 /*
  *  --------------------- Data type definition ---------------------------------
  */
@@ -89,6 +93,13 @@ typedef void *          Arg;
 typedef unsigned long   HANDLE;
 
 typedef unsigned short  bool_t;
+
+struct __osa_head_t;
+typedef struct __osa_head_t osa_head_t;
+struct __osa_head_t
+{
+    const void *        __d[OSA_HEAD_RESERVED_NUM];
+};
 
 /** ----------------------------------------------------------------------------
  *  @Name:          Structure name

@@ -38,7 +38,7 @@
 #include "osa_msgq.h"
 #include "osa_mutex.h"
 #include "osa_mem.h"
-#include "osa_queue2.h"
+#include "osa_rbtree.h"
 #include "dlist.h"
 
 #if defined(__cplusplus)
@@ -82,9 +82,14 @@ extern "C" {
 struct __msgq_t
 {
     DLIST_ELEMENT_RESERVED;
+
     unsigned char   m_name[32];
 
-    queue2_t        m_queue;
+    osa_mutex_t     m_mutex;
+    osa_cond_t      m_cond;
+    unsigned int    m_mcount;
+
+    struct rb_root  m_rbroot;
 };
 
 struct __msgq_mgr_t; typedef struct __msgq_mgr_t msgq_mgr_t;
@@ -174,6 +179,8 @@ __msgq_mgr_find_match_fxn(dlist_element_t *elem, void *data);
 static status_t
 __msgq_mgr_msgs_pool_apply_fxn(dlist_element_t *elem, void *data);
 
+static void __msgq_msg_insert(struct __msgq_t * pmsgq, msg_t * pmsg);
+
 /*
  *  --------------------- Public function definition ---------------------------
  */
@@ -261,11 +268,19 @@ status_t msgq_open(const char *name, msgq_t *msgq, msgq_attrs_t *attrs)
         return status;
     }
 
-    status = queue2_create(&pmsgq->m_queue);
+    status = osa_mutex_create(&pmsgq->m_mutex);
     if (OSA_ISERROR(status)) {
         OSA_memFree(sizeof(struct __msgq_t), pmsgq);
         return status;
     }
+    status = osa_cond_create(&pmsgq->m_cond);
+    if (OSA_ISERROR(status)) {
+        osa_mutex_delete(&pmsgq->m_mutex);
+        OSA_memFree(sizeof(struct __msgq_t), pmsgq);
+        return status;
+    }
+
+    pmsgq->m_mcount = 0;
 
     snprintf(pmsgq->m_name, sizeof(pmsgq->m_name) - 1, "%s", name);
 
@@ -341,18 +356,64 @@ status_t msgq_send(msgq_t msgq, msg_t *msg, unsigned int timeout)
 {
     struct __msgq_t * pmsgq  = (struct __msgq_t *)msgq;
 
-    msgq_check_arguments(pmsgq);
+    msgq_check_arguments2(pmsgq, msg);
 
-    return queue2_put(pmsgq->m_queue, (void *)msg, timeout);
+    osa_mutex_lock  (pmsgq->m_mutex);
+
+    __msgq_msg_insert(pmsgq, msg);
+
+    pmsgq->m_mcount++;
+
+    osa_cond_signal(pmsgq->m_cond);
+
+    osa_mutex_unlock(pmsgq->m_mutex);
+
+    return OSA_SOK;
 }
+
 
 status_t msgq_recv(msgq_t msgq, msg_t **msg, unsigned int timeout)
 {
+    status_t          status = OSA_EFAIL;
+    struct rb_node  * pnode  = NULL;
     struct __msgq_t * pmsgq  = (struct __msgq_t *)msgq;
 
-    msgq_check_arguments(pmsgq);
+    msgq_check_arguments2(pmsgq, msg);
 
-    return queue2_get(pmsgq->m_queue, (void **)msg, timeout);
+    osa_mutex_lock  (pmsgq->m_mutex);
+
+    while (true) {
+        if (pmsgq->m_mcount > 0) {
+
+            pnode  = rb_last(&pmsgq->m_rbroot);
+
+            OSA_assert(NULL != pnode);
+
+            *msg   = rb_entry((osa_head_t *)pnode, msg_t, m_head);
+            rb_erase((struct rb_node *)&(*msg)->m_head, &pmsgq->m_rbroot);
+
+            pmsgq->m_mcount--;
+            status = OSA_SOK;
+
+            break;
+        } else {
+            if (OSA_TIMEOUT_NONE == timeout) {
+                break;
+            } else if (OSA_TIMEOUT_FOREVER == timeout) {
+                status = osa_cond_wait(pmsgq->m_cond, pmsgq->m_mutex);
+            } else {
+                status = osa_cond_timedwait(pmsgq->m_cond, pmsgq->m_mutex, timeout);
+            }
+
+            if (OSA_ISERROR(status)) {
+                break;
+            }
+        }
+    }
+
+    osa_mutex_unlock(pmsgq->m_mutex);
+
+    return status;
 }
 
 status_t msgq_get_src_queue(msg_t *msg, msgq_t *msgq)
@@ -405,7 +466,11 @@ status_t msgq_count(msgq_t msgq, unsigned int *cnt)
 
     msgq_check_arguments2(pmsgq, cnt);
 
-    return queue2_count(pmsgq->m_queue, cnt);
+    osa_mutex_lock  (pmsgq->m_mutex);
+    (*cnt) = pmsgq->m_mcount;
+    osa_mutex_unlock(pmsgq->m_mutex);
+
+    return OSA_SOK;
 }
 
 status_t msgq_close(const char *name, msgq_t *msgq)
@@ -417,7 +482,8 @@ status_t msgq_close(const char *name, msgq_t *msgq)
 
     status |= __msgq_mgr_unregister(name, (msgq_t)pmsgq);
 
-    status |= queue2_delete(&pmsgq->m_queue);
+    status |= osa_cond_delete (&pmsgq->m_cond);
+    status |= osa_mutex_delete(&pmsgq->m_mutex);
 
     status |= OSA_memFree(sizeof(struct __msgq_t), pmsgq);
 
@@ -539,6 +605,31 @@ static status_t
 __msgq_mgr_msgs_pool_apply_fxn(dlist_element_t *elem, void *data)
 {
     return OSA_memFree(msg_get_msg_size(elem), elem);
+}
+
+static void __msgq_msg_insert(struct __msgq_t * pmsgq, msg_t * pmsg)
+{
+    msg_t           * pentry = NULL;
+    struct rb_node  * parent = NULL;
+    struct rb_node ** pnew   = &pmsgq->m_rbroot.rb_node;
+
+    while (*pnew) {
+
+        parent = *pnew;
+
+        pentry = rb_entry((osa_head_t *)parent, msg_t, m_head);
+
+        if (msg_get_priority(pmsg) < msg_get_priority(pentry)) {
+            /* High priority msg insert into right child */
+            pnew = &parent->rb_right;
+        } else {
+            /* Low or equal priority msg insert into left child */
+            pnew = &parent->rb_left;
+        }
+    }
+
+    rb_link_node((struct rb_node *)&pmsg->m_head, parent, pnew);
+    rb_insert_color((struct rb_node *)&pmsg->m_head, &pmsgq->m_rbroot);
 }
 
 #if defined(__cplusplus)

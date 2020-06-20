@@ -60,8 +60,7 @@ extern "C" {
  *  @Description:   Description of this macro.
  *  ============================================================================
  */
-#define DLIST_ELEMENT_RESERVED HANDLE \
-    m_reserved[2]
+#define DLIST_ELEMENT_RESERVED  OSA_HEAD_RESERVED
 
 /*
  *  --------------------- Data type definition ---------------------------------

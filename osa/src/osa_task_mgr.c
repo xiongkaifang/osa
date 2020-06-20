@@ -357,6 +357,20 @@ status_t task_mgr_synchronize(task_object_t *ptsk, unsigned short cmd, void *prm
     return __task_mgr_synchronize(ptsk->m_task, ptskmgr->m_tsk_obj.m_task, cmd, prm, size, flags);
 }
 
+status_t task_mgr_synchronize3(task_object_t *pto, task_object_t * pfrm,
+        unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
+{
+    task_mgr_t *ptskmgr = &glb_tsk_mgr_obj;
+
+    task_mgr_check_arguments(pto);
+
+    if (!pfrm) {
+        pfrm = &ptskmgr->m_tsk_obj;
+    }
+
+    return __task_mgr_synchronize(pto->m_task, pfrm->m_task, cmd, prm, size, flags);
+}
+
 status_t task_mgr_synchronize2(unsigned short cmd, void *prm, unsigned int size, unsigned int flags)
 {
     status_t        status  = OSA_SOK;
